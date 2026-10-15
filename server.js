@@ -20,6 +20,14 @@ const devices = JSON.parse(fs.readFileSync(path.join(DATA, 'devices.json'), 'utf
 const rules = JSON.parse(fs.readFileSync(path.join(DATA, 'rules.json'), 'utf8'));
 const KINDS = rules.anomalies.filter((a) => !a.rule_only).map((a) => a.kind);
 
+// Every part number the reference data documents, for any model. Used to tell a genuinely swapped
+// chip (the marking is a real part of another model) from a marking the model probably misread.
+const KNOWN_PARTS = devices.brands
+  .flatMap((b) => b.models)
+  .flatMap((m) => m.chips || [])
+  .flatMap((c) => (Array.isArray(c.part) ? c.part : [c.part]))
+  .filter(Boolean);
+
 // Reports are cached by device + photo hash. The reference data and the rule taxonomy take part
 // in that hash, so editing either one retires the old reports instead of serving a verdict that
 // was produced by different rules.
@@ -138,7 +146,7 @@ function photoDigests(images) {
 function finalize({ device, out, images }) {
   const report = buildReport({
     device, observations: out.observations, taxonomy: rules, verdicts: rules.verdicts,
-    model: out.model, elapsedMs: out.elapsedMs, photos: photoDigests(images),
+    model: out.model, elapsedMs: out.elapsedMs, photos: photoDigests(images), knownParts: KNOWN_PARTS,
   });
   const signature = signer.sign(report);
   if (signature) report.signature = signature;

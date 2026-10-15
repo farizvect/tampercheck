@@ -69,6 +69,17 @@ h1 { font-size: 1.05rem; letter-spacing: .14em; text-transform: uppercase; margi
 .rail-step.done .rn { border-color: var(--ok); color: var(--ok); }
 .rail-step:disabled { color: var(--faint); border-color: transparent; background: none; cursor: default; }
 
+/* ---------- notice ---------- */
+/* Shown before the first photo is taken. A tool that can answer "nothing wrong" has to say up
+   front what that answer is worth, otherwise the clean case is read as a guarantee. */
+.notice {
+  border-left: 3px solid var(--line-2); padding: .5rem 0 .5rem .8rem; margin: 0 0 1.1rem;
+  color: var(--mid); font-size: 12.5px; line-height: 1.6; max-width: 74ch;
+}
+.disclaimer { border-top: 1px solid var(--line); margin-top: 1.4rem; padding-top: 1rem; }
+.disclaimer h3 { margin-top: 0; }
+.disclaimer li { color: var(--dim); margin: .45rem 0; }
+
 /* ---------- panels ---------- */
 main { display: grid; gap: 1rem; }
 /* The step rail is sticky, so anything scrolled to must clear it. */

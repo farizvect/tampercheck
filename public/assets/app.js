@@ -56,10 +56,11 @@
       est_brand: 'pick a brand to start', est_model: 'pick a model to start',
       est_front: 'the front photo is the one that decides the verdict',
       est_weak: (names) => `${names} may be too weak to judge — you can still run it`,
-      est_ready: 'usually 10–20 s, about $0.02 of model usage',
+      est_ready: 'usually 10–30 s, well under a cent of model usage',
       est_ready_short: 'ready to check',
       starting: 'starting', phase_queued: 'queued', phase_sent: 'sending the photos',
       phase_connected: 'waiting for the model', phase_verdict: 'applying the rules', phase_writing: 'model is writing',
+      phase_retry: 'the answer was not JSON — asking again',
       step_send: 'sending the photos', step_read: 'model is reading the board',
       step_chips: 'reading the chip markings', step_parts: 'checking for added parts',
       step_write: 'writing up the findings',
@@ -94,6 +95,15 @@
       hint_battery: 'This model has no battery — a battery would be an addition.',
       hint_radio: 'This model has no radio — any antenna or shielded module would be an addition.',
       footer: "Automated visual observations, not a certification. Photos cannot prove a device is safe: run the manufacturer's own genuine check as well.",
+      notice: 'A visual check, not a verdict. It sees only what the photo shows: an implant hidden under the screen, painted to match the board, or too small to resolve can look like nothing at all. A clean result never proves a device is safe.',
+      disclaimer_title: 'what this report is not',
+      disclaimer: [
+        'It reads only what the photographs show. An implant hidden under the screen, painted to match the board, or too small to resolve will not appear here.',
+        'A clean result does not mean the device is safe. It means nothing was visible in these photographs.',
+        "A photograph cannot verify the secure element, and the manufacturer's own genuine check cannot detect physical additions either. Run it, and treat it as one input rather than an answer.",
+        'If a recovery phrase was ever shown on a device of uncertain origin, treat it as compromised: move the funds to a seed generated on a device you trust.',
+        'Not affiliated with, or endorsed by, any wallet manufacturer.',
+      ],
     },
     id: {
       language: 'bahasa',
@@ -131,10 +141,11 @@
       est_brand: 'pilih merek dulu', est_model: 'pilih model dulu',
       est_front: 'foto depan adalah yang menentukan verdict',
       est_weak: (names) => `${names} mungkin terlalu lemah untuk dinilai — tetap bisa dijalankan`,
-      est_ready: 'biasanya 10–20 detik, sekitar $0.02 pemakaian model',
+      est_ready: 'biasanya 10–30 detik, jauh di bawah satu sen pemakaian model',
       est_ready_short: 'siap diperiksa',
       starting: 'mulai', phase_queued: 'dalam antrean', phase_sent: 'mengirim foto',
       phase_connected: 'menunggu model', phase_verdict: 'menerapkan aturan', phase_writing: 'model sedang menulis',
+      phase_retry: 'jawabannya bukan JSON — meminta ulang',
       step_send: 'mengirim foto', step_read: 'model membaca board',
       step_chips: 'membaca marking chip', step_parts: 'memeriksa komponen tambahan',
       step_write: 'menyusun temuan',
@@ -169,6 +180,15 @@
       hint_battery: 'Model ini tidak punya baterai — adanya baterai berarti tambahan.',
       hint_radio: 'Model ini tidak punya radio — antena atau modul berpelindung apa pun berarti tambahan.',
       footer: 'Ini observasi visual otomatis, bukan sertifikasi. Foto tidak bisa membuktikan perangkat aman: jalankan juga pengecekan resmi dari pabriknya.',
+      notice: 'Ini pemeriksaan visual, bukan putusan. Yang terlihat hanya sebatas foto: implan yang tersembunyi di bawah layar, dicat senada board, atau terlalu kecil untuk terlihat bisa tampak seperti tidak ada apa-apa. Hasil bersih tidak pernah membuktikan perangkat aman.',
+      disclaimer_title: 'yang bukan dilakukan laporan ini',
+      disclaimer: [
+        'Laporan ini hanya membaca apa yang terlihat di foto. Implan yang tersembunyi di bawah layar, dicat senada board, atau terlalu kecil untuk terlihat tidak akan muncul di sini.',
+        'Hasil bersih bukan berarti perangkatnya aman. Artinya tidak ada yang terlihat di foto-foto ini.',
+        'Foto tidak bisa memverifikasi secure element, dan pengecekan resmi dari pabriknya pun tidak bisa mendeteksi tambahan fisik. Jalankan, tapi anggap sebagai satu masukan, bukan jawaban.',
+        'Kalau 24 kata recovery pernah tampil di perangkat yang asal-usulnya tidak pasti, anggap sudah bocor: pindahkan dana ke seed yang dibuat di perangkat yang Anda percaya.',
+        'Tidak berafiliasi dengan, dan tidak didukung oleh, produsen dompet mana pun.',
+      ],
     },
   };
 
@@ -648,7 +668,7 @@
 
   const PHASE_LABEL = {
     queued: 'phase_queued', sent: 'phase_sent', connected: 'phase_connected',
-    verdict: 'phase_verdict', writing: 'phase_writing',
+    verdict: 'phase_verdict', writing: 'phase_writing', retry: 'phase_retry',
   };
 
   $('#go').addEventListener('click', async () => {
@@ -798,6 +818,9 @@
         h('summary', { text: t('details') }),
         h('p', { class: 'fine', text: t('details_note') }),
         h('h3', { text: t('main_chips') }), chipRows, ...extras),
+      h('div', { class: 'disclaimer' },
+        h('h3', { text: t('disclaimer_title') }),
+        h('ul', { class: 'plain' }, t('disclaimer').map((x) => h('li', { text: x })))),
       h('div', { class: 'report-actions' },
         h('a', { href: permalink, target: '_blank', rel: 'noopener', text: t('permalink') }),
         copy,

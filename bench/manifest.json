@@ -1,43 +1,421 @@
 {
-  "_note": "Labelled cases for the benchmark. Images are fetched from their published source at run time and checked against the sha256 here, so no third-party photo is redistributed with this repository. Add a case by adding an entry: truth is what the device actually is, provenance is 'real' for a photograph of a real device and 'synthetic' for a variant generated from a genuine photo.",
-  "_verdict_classes": {
-    "flagged": "verdict is anomalies or board_mismatch - the app is saying something is wrong",
-    "clean": "verdict is no_visible_anomalies - the app is saying nothing is visibly wrong",
-    "no_claim": "verdict is unusable_photo or needs_closer_look - the app declines to conclude"
+ "_note": "Labelled cases for the benchmark. Photographs are fetched from their published source at run time and checked against the sha256 recorded here, so no third-party photo is redistributed with this repository. provenance: 'real' = an unmodified photograph of a real device, 'real-crop' = a crop of one (the same evidence framed differently, not an independent case), 'synthetic' = a variant generated locally from a genuine photo. Add a case by appending an entry with url+sha256; set synthetic_ok on a genuine case to have a synthetic tampered variant derived from it.",
+ "_verdict_classes": {
+  "flagged": "verdict is anomalies or board_mismatch - the app is saying something is wrong",
+  "clean": "verdict is no_visible_anomalies - the app is saying nothing is visibly wrong",
+  "no_claim": "verdict is unusable_photo or needs_closer_look - the app declines to conclude"
+ },
+ "_sources": {
+  "grandideastudio": "https://grandideastudio.com/portfolio/security/ledger-hardware-implant/",
+  "tibane": "https://www.tibane.net/research/ledger-nano-x-implant",
+  "boxmining": "https://boxmining.com/news/ledger-hardware-implant-cryptobilis-hack/",
+  "ledger": "https://support.ledger.com/article/4404382029329-zd",
+  "trezor": "https://github.com/trezor/trezor-core/tree/master/docs/hardware"
+ },
+ "cases": [
+  {
+   "id": "implant-ledger-gen1-gis",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real",
+   "url": "https://grandideastudio.com/media/_portfolio/ledger_implant_img1.jpg",
+   "sha256": "7d18a9a528ee4c7d987d9e5c072343c884f5b0cc224e175f4dac6f0d62dc210a",
+   "note": "Joe Grand's Gen-1 teardown: add-on board glued into the case shell, enamelled wires, shrunken battery."
   },
-  "cases": [
-    {
-      "id": "ledger-nanox-implant-real",
-      "brand": "ledger",
-      "model": "nano-x",
-      "truth": "tampered",
-      "provenance": "real",
-      "url": "https://grandideastudio.com/media/_portfolio/ledger_implant_img1.jpg",
-      "sha256": "f2d978b6f53e40b549e3fb6051a96952b500d925378135cbaef296f8471ae85d",
-      "source": "https://grandideastudio.com/portfolio/security/ledger-hardware-implant/",
-      "note": "A real implant recovered from a Ledger Nano X: a second PCB carrying test pads, wired to the main board. The reference case for a true positive."
-    },
-    {
-      "id": "trezor-modelt-top-genuine",
-      "brand": "trezor",
-      "model": "model-t",
-      "truth": "genuine",
-      "provenance": "real",
-      "url": "https://raw.githubusercontent.com/trezor/trezor-core/master/docs/hardware/model-t-top-v12.jpg",
-      "sha256": "d6fe074eb7e22551820c152204ed76c456fb2e9c8003c51096d9e16e8093d0d3",
-      "source": "https://github.com/trezor/trezor-core/tree/master/docs/hardware",
-      "note": "Published reference photo of a genuine Model T board, top side. Trezor publishes schematic, BOM and board photos."
-    },
-    {
-      "id": "trezor-modelt-bottom-genuine",
-      "brand": "trezor",
-      "model": "model-t",
-      "truth": "genuine",
-      "provenance": "real",
-      "url": "https://raw.githubusercontent.com/trezor/trezor-core/master/docs/hardware/model-t-bottom-v12.jpg",
-      "sha256": "b2a41a168acc0007ec5fab0ddc724265aa8eb3ce08b40c9f2df6d8e7e0fa8700",
-      "source": "https://github.com/trezor/trezor-core/tree/master/docs/hardware",
-      "note": "Published reference photo of a genuine Model T board, bottom side."
-    }
-  ]
+  {
+   "id": "implant-ledger-gen2-flex",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real",
+   "url": "https://www.tibane.net/assets/flex-implant-Bgb2BYIC.jpg",
+   "sha256": "fa098db1f9ca66161c7964ef0a3ccf9480a266ae65699ad5149e3bc1121ce9d3",
+   "note": "Gen-2: a Kapton flex laminated over the back of the board, soldered to the factory test pads."
+  },
+  {
+   "id": "implant-ledger-gen2-teardown",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real",
+   "url": "https://www.tibane.net/assets/flex-teardown-B1NwROxe.jpg",
+   "sha256": "ea5a55ba068378c7f967a00de2b5df901ead6c4aa9f2c9abd36d5f16eac01c31",
+   "note": "Gen-2 fully apart: OLED, battery with antenna, flex implant, main board."
+  },
+  {
+   "id": "implant-ledger-gen3-closed",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real",
+   "url": "https://www.tibane.net/assets/camo-closed-CDHX54K1.jpg",
+   "sha256": "7cfda0cef3b5a85c1671b3e09ae640db61eb5969f00550c505be48501e29372d",
+   "note": "Gen-3 with the screen still in place. Hard on purpose: it looks like an ordinary Nano X apart from a thin antenna wire."
+  },
+  {
+   "id": "implant-ledger-gen3-underscreen",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real",
+   "url": "https://www.tibane.net/assets/camo-under-screen-Dg8rZOdS.jpg",
+   "sha256": "4c09b214f7219bc3253a3818137fdd839632a372d0cfb4857388ee6c215d28e8",
+   "note": "Gen-3 with the screen removed: cellular module, MCU and eSIM packed under the OLED."
+  },
+  {
+   "id": "implant-ledger-underscreen-b",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real",
+   "url": "https://boxmining.com/_astro/implant-under-screen.Cau1jS7A_2Ekng.webp",
+   "sha256": "73381a681847a7a57041af15b4f3b174f427219ec6db232a94591c692879b92a",
+   "note": "Buyer photograph of a Nano X with the implant behind the screen."
+  },
+  {
+   "id": "implant-ledger-germany",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real",
+   "url": "https://boxmining.com/_astro/germany-device-1.BMeLlMqG_Z1bCEUK.webp",
+   "sha256": "8907cb20c457a8ec15c0a17b1c53eb7fc96ecf3398853ddf50c08fa719a4f386",
+   "note": "Annotated teardown of a device bought from a European retail store: extra wires and an LTE module."
+  },
+  {
+   "id": "implant-ledger-removed-flex",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real",
+   "url": "https://boxmining.com/_astro/removed-flex-implant.0F1ly7o2_16xAYd.webp",
+   "sha256": "314382a17a2e48d5fceea1fe8c5ee5c0e5ad624621b6fa9b49ce119961dbd22f",
+   "note": "The genuine board next to the removed implant flex."
+  },
+  {
+   "id": "genuine-stax-pcb-front",
+   "brand": "ledger",
+   "model": "stax",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://ledgercustomersuccess.file.force.com/file-asset-public/asset_4404382029329B?oid=00D06000001SxsQ",
+   "sha256": "37f58bb3f56f761cf2d6d74300fd18a37240326cf253b7ea687cd2ff094989f4",
+   "synthetic_ok": true,
+   "note": "Official Stax PCB reference photo (the manufacturer publishes this pair to let an owner compare)."
+  },
+  {
+   "id": "genuine-stax-pcb-back",
+   "brand": "ledger",
+   "model": "stax",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://ledgercustomersuccess.file.force.com/file-asset-public/asset_4404382029329C?oid=00D06000001SxsQ",
+   "sha256": "9b550b283f07e935829631c9251b754b83517d74c33a1b60ae1b5d21bb210d95",
+   "synthetic_ok": true,
+   "note": "Official Stax PCB reference photo (the manufacturer publishes this pair to let an owner compare)."
+  },
+  {
+   "id": "genuine-nanox-rev4-green-front",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://ledgercustomersuccess.file.force.com/file-asset-public/asset_4404382029329F?oid=00D06000001SxsQ",
+   "sha256": "5b524756b22ae16d88f5adf89bd6e0c2d5cf662d28060bf840c52b493ea01f28",
+   "synthetic_ok": true,
+   "note": "Revision 4 green board."
+  },
+  {
+   "id": "genuine-nanox-rev4-green-back",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://ledgercustomersuccess.file.force.com/file-asset-public/asset_4404382029329G?oid=00D06000001SxsQ",
+   "sha256": "833c6393ca3ddb73789e8aa6c28af66b99d788e3c8302b0e235ba2bb0c277337",
+   "synthetic_ok": true,
+   "note": "Revision 4 green board, back."
+  },
+  {
+   "id": "genuine-nanox-rev4-black-front",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://support.ledger.com/vforcesite/servlet/rtaImage?eid=ka0Tx00000138DN&feoid=00N0600000NJUBh&refid=0EMTx00000J62fK",
+   "sha256": "4ace64f0ef0717463a23f2940d2077b545f816e47c322e4a53232576ced0535f",
+   "synthetic_ok": true,
+   "note": "Revision 4 black board."
+  },
+  {
+   "id": "genuine-nanox-rev4-black-back",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://support.ledger.com/vforcesite/servlet/rtaImage?eid=ka0Tx00000138DN&feoid=00N0600000NJUBh&refid=0EMTx00000J6NyH",
+   "sha256": "80ae9d5ac3d6815740e4f00db7008aa13bb8cb46600515a7ba1d84b9238907a4",
+   "synthetic_ok": true,
+   "note": "Revision 4 black board, back."
+  },
+  {
+   "id": "genuine-nanox-disassembled",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://ledgercustomersuccess.my.site.com/sfc/servlet.shepherd/document/download/069Tx00000Tc0UlIAJ?asAsset=1",
+   "sha256": "a5e62f532baf57a447683acf719287f306d5d43709f5dc2eccf492c057d432f8",
+   "synthetic_ok": true,
+   "note": "Disassembled Nano X, official layout."
+  },
+  {
+   "id": "genuine-nanox-disassembled2",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://ledgercustomersuccess.my.site.com/sfc/servlet.shepherd/document/download/069Tx00000TbqGuIAJ?asAsset=1",
+   "sha256": "72191bacc25eae33ad831d770a4ee01a2d180b719304c2d82cb875bfabb1ddd8",
+   "synthetic_ok": true,
+   "note": "Disassembled Nano X, second view."
+  },
+  {
+   "id": "genuine-stax-disassembled",
+   "brand": "ledger",
+   "model": "stax",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://ledgercustomersuccess.my.site.com/sfc/servlet.shepherd/document/download/069Tx00000TbhzrIAB?asAsset=1",
+   "sha256": "f8f8179fd35ef64df2676afa2a64d568677dba304591f10fb03fd85652252d0f",
+   "synthetic_ok": true,
+   "note": "Official Stax disassembly."
+  },
+  {
+   "id": "genuine-stax-disassembled2",
+   "brand": "ledger",
+   "model": "stax",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://ledgercustomersuccess.my.site.com/sfc/servlet.shepherd/document/download/069Tx00000Tbuk8IAB?asAsset=1",
+   "sha256": "088a56c3539398849afa3611a58dec32c7ef10482910596a6fdba5550df9a169",
+   "synthetic_ok": true,
+   "note": "Official Stax disassembly, second view."
+  },
+  {
+   "id": "genuine-flex-pcb-front",
+   "brand": "ledger",
+   "model": "flex",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://ledgercustomersuccess.file.force.com/file-asset-public/asset_4404382029329D?oid=00D06000001SxsQ",
+   "sha256": "d55e0674871ad268bba0077051272e28857418081360538c1c5286f4c36dfba7",
+   "synthetic_ok": true,
+   "note": "Flex PCB front."
+  },
+  {
+   "id": "genuine-flex-pcb-back",
+   "brand": "ledger",
+   "model": "flex",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://ledgercustomersuccess.file.force.com/file-asset-public/asset_4404382029329E?oid=00D06000001SxsQ",
+   "sha256": "0cb7725a120d7464e743f2e0497fa44b7c8648a21b60051eefcb6c0508420780",
+   "synthetic_ok": true,
+   "note": "Flex PCB back."
+  },
+  {
+   "id": "genuine-gen5-pcb-front",
+   "brand": "ledger",
+   "model": "nano-gen5",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://ledgercustomersuccess.file.force.com/file-asset-public/asset_000003334A?oid=00D06000001SxsQ",
+   "sha256": "57b45c146efce6ba06620f6d5eca68ff61e17481fba4796ca2ad1c158cfe090e",
+   "synthetic_ok": true,
+   "note": "Nano Gen5 PCB front."
+  },
+  {
+   "id": "genuine-gen5-pcb-back",
+   "brand": "ledger",
+   "model": "nano-gen5",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://ledgercustomersuccess.file.force.com/file-asset-public/asset_000003334B?oid=00D06000001SxsQ",
+   "sha256": "872514d3e70b8161f6cefad39cb629d0f7125df27cfd15e0fe397ce49e70a2a1",
+   "synthetic_ok": true,
+   "note": "Nano Gen5 PCB back."
+  },
+  {
+   "id": "genuine-nanosp-bosch-front",
+   "brand": "ledger",
+   "model": "nano-s-plus",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://support.ledger.com/vforcesite/servlet/rtaImage?eid=ka0Tx00000138DN&feoid=00N0600000NJUBh&refid=0EMTx00000J6RnN",
+   "sha256": "32674a62286c4bf9c1c23a297b6d749146432bfaa5f438460d6abc0cac459e93",
+   "synthetic_ok": true,
+   "note": "Nano S Plus, Bosch revision, front."
+  },
+  {
+   "id": "genuine-nanosp-bosch-back",
+   "brand": "ledger",
+   "model": "nano-s-plus",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://support.ledger.com/vforcesite/servlet/rtaImage?eid=ka0Tx00000138DN&feoid=00N0600000NJUBh&refid=0EMTx00000J62SQ",
+   "sha256": "ca66e1d46903d910fee615959b15bfc186f23038303d6a1e9bf9fb551c560368",
+   "synthetic_ok": true,
+   "note": "Nano S Plus, Bosch revision, back."
+  },
+  {
+   "id": "genuine-trezor-modelt-top-v12",
+   "brand": "trezor",
+   "model": "model-t",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://raw.githubusercontent.com/trezor/trezor-core/master/docs/hardware/model-t-top-v12.jpg",
+   "sha256": "d6fe074eb7e22551820c152204ed76c456fb2e9c8003c51096d9e16e8093d0d3",
+   "synthetic_ok": true
+  },
+  {
+   "id": "genuine-trezor-modelt-bottom-v12",
+   "brand": "trezor",
+   "model": "model-t",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://raw.githubusercontent.com/trezor/trezor-core/master/docs/hardware/model-t-bottom-v12.jpg",
+   "sha256": "b2a41a168acc0007ec5fab0ddc724265aa8eb3ce08b40c9f2df6d8e7e0fa8700",
+   "synthetic_ok": true
+  },
+  {
+   "id": "genuine-trezor-modelt-top-v10",
+   "brand": "trezor",
+   "model": "model-t",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://raw.githubusercontent.com/trezor/trezor-core/master/docs/hardware/model-t-top-v10.jpg",
+   "sha256": "f27de0793301612cdabac2206bf3af9a4f0bbb88f7c6e7015abd0c87ca474a2c",
+   "synthetic_ok": true
+  },
+  {
+   "id": "genuine-trezor-modelt-bottom-v10",
+   "brand": "trezor",
+   "model": "model-t",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://raw.githubusercontent.com/trezor/trezor-core/master/docs/hardware/model-t-bottom-v10.jpg",
+   "sha256": "1843c1e17e61a051fc7be29ff2865782eb66783f5a410c371c45da2d18e03653",
+   "synthetic_ok": true
+  },
+  {
+   "id": "genuine-trezor-modelt-front",
+   "brand": "trezor",
+   "model": "model-t",
+   "truth": "genuine",
+   "provenance": "real",
+   "url": "https://raw.githubusercontent.com/trezor/trezor-core/master/docs/hardware/photo-front.jpg",
+   "sha256": "e28b6dc0296fbd4ee91afdd6fd241370603d529b944b2e01356b1c28209d9fc2",
+   "synthetic_ok": true
+  },
+  {
+   "id": "implant-ledger-gen1-gis-crop1",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real-crop",
+   "crop_of": "implant-ledger-gen1-gis",
+   "box": [
+    0.14,
+    0.1,
+    0.9,
+    0.92
+   ]
+  },
+  {
+   "id": "implant-ledger-gen2-flex-crop1",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real-crop",
+   "crop_of": "implant-ledger-gen2-flex",
+   "box": [
+    0.06,
+    0.06,
+    0.96,
+    0.96
+   ]
+  },
+  {
+   "id": "implant-ledger-gen2-teardown-crop1",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real-crop",
+   "crop_of": "implant-ledger-gen2-teardown",
+   "box": [
+    0.05,
+    0.3,
+    0.95,
+    0.98
+   ]
+  },
+  {
+   "id": "implant-ledger-gen3-underscreen-crop1",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real-crop",
+   "crop_of": "implant-ledger-gen3-underscreen",
+   "box": [
+    0.1,
+    0.1,
+    0.92,
+    0.94
+   ]
+  },
+  {
+   "id": "implant-ledger-underscreen-b-crop1",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real-crop",
+   "crop_of": "implant-ledger-underscreen-b",
+   "box": [
+    0.08,
+    0.08,
+    0.94,
+    0.94
+   ]
+  },
+  {
+   "id": "implant-ledger-removed-flex-crop1",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real-crop",
+   "crop_of": "implant-ledger-removed-flex",
+   "box": [
+    0.04,
+    0.1,
+    0.96,
+    0.96
+   ]
+  },
+  {
+   "id": "implant-ledger-germany-crop1",
+   "brand": "ledger",
+   "model": "nano-x",
+   "truth": "tampered",
+   "provenance": "real-crop",
+   "crop_of": "implant-ledger-germany",
+   "box": [
+    0.02,
+    0.02,
+    0.98,
+    0.98
+   ]
+  }
+ ]
 }

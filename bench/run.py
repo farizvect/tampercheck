@@ -3,14 +3,19 @@
 
     python3 bench/run.py                       # all cases against the default server
     python3 bench/run.py --base http://host:port
-    python3 bench/run.py --only ledger-nanox-implant-real
+    python3 bench/run.py --only implant-ledger-gen3-underscreen
     python3 bench/run.py --no-synthetic        # real photographs only
 
-Images are fetched from their published source and checked against the sha256 in
-manifest.json, so nothing third-party is redistributed with the repository. Synthetic cases are
-generated locally from the genuine photos by pasting an extra board and drawing bodge wires;
-they are labelled as such in the output because they test one specific skill (spotting an
-addition) rather than a real-world implant.
+Images are fetched from their published source and checked against the sha256 in manifest.json, so
+nothing third-party is redistributed with the repository. Three kinds of case are reported
+separately, because they are not equally strong evidence:
+
+  real       an unmodified photograph of a real device. The only cases that measure real accuracy.
+  real-crop  a crop of one of those photographs. Same evidence, framed differently: it tests that a
+             conclusion survives a tighter crop, not an independent device.
+  synthetic  a variant generated locally from a genuine photo by pasting an extra board and drawing
+             bodge wires. It exercises one skill (spotting an addition) and is much easier than a
+             real implant, so it never stands in for the real numbers.
 
 Results are written to bench/results.json. Exit code is 1 if a REAL case is misjudged.
 """
@@ -42,6 +47,8 @@ MAX_EDGE, MAX_PIXELS = 2576, 3.5e6
 FLAGGED = {"anomalies", "board_mismatch"}
 CLEAN = {"no_visible_anomalies"}
 
+KINDS = ["real", "real-crop", "synthetic"]
+
 
 def preprocess(path):
     """Resize and re-encode exactly like the client does."""
@@ -58,8 +65,8 @@ def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def fetch(case):
-    """Download the case image once, verifying its hash."""
+def download(case):
+    """Fetch a case's published original once, verifying its hash."""
     os.makedirs(IMAGES, exist_ok=True)
     dest = os.path.join(IMAGES, case["id"] + ".jpg")
     want = case.get("sha256", "")
@@ -77,13 +84,22 @@ def fetch(case):
     return dest
 
 
-def make_synthetic(case):
-    """Paste an extra board and draw bodge wires onto a genuine photo.
+def materialise(case, by_id):
+    """Path of the image to submit for this case, generating crops on demand."""
+    if not case.get("crop_of"):
+        return download(case)
+    src = download(by_id[case["crop_of"]])
+    dest = os.path.join(IMAGES, case["id"] + ".jpg")
+    box = case["box"]
+    im = Image.open(src).convert("RGB")
+    w, h = im.size
+    im.crop((int(box[0] * w), int(box[1] * h), int(box[2] * w), int(box[3] * h))).save(dest, "JPEG", quality=92)
+    return dest
 
-    This is the cheapest way to grow the tampered side of the set. It only exercises
-    'is something added visible', so results from these cases are reported separately.
-    """
-    src = Image.open(fetch(case)).convert("RGB")
+
+def make_synthetic(case):
+    """Paste an extra board and draw bodge wires onto a genuine photo."""
+    src = Image.open(download(case)).convert("RGB")
     w, h = src.size
     im = src.copy()
     d = ImageDraw.Draw(im)
@@ -140,22 +156,23 @@ def main():
     base = args.base.rstrip("/")
 
     manifest = json.load(open(MANIFEST))
+    by_id = {c["id"]: c for c in manifest["cases"]}
     cases = [c for c in manifest["cases"] if not args.only or c["id"] == args.only]
 
     work = []
     for c in cases:
-        work.append((c, "real", fetch(c)))
+        work.append((c, c.get("provenance", "real"), materialise(c, by_id)))
     if not args.no_synthetic:
         for c in cases:
-            if c["truth"] == "genuine" and c.get("provenance") == "real":
+            if c["truth"] == "genuine" and c.get("synthetic_ok"):
                 s = dict(c)
-                s["id"] = c["id"].replace("-genuine", "") + "-synthetic-extraboard"
+                s["id"] = c["id"].replace("genuine-", "") + "-synthetic-extraboard"
                 s["truth"] = "tampered"
                 work.append((s, "synthetic", None))
 
     print(f"benchmark against {base}")
-    print(f"{'case':44s} {'truth':9s} {'kind':10s} {'verdict':22s} {'result':9s} s")
-    print("-" * 108)
+    print(f"{'case':46s} {'truth':9s} {'kind':10s} {'verdict':22s} {'result':9s} s")
+    print("-" * 110)
 
     results, failures = [], []
     for case, kind, path in work:
@@ -173,7 +190,7 @@ def main():
             outcome = "WRONG"
             if kind == "real":
                 failures.append((case["id"], case["truth"], verdict))
-        print(f"{case['id']:44s} {case['truth']:9s} {kind:10s} {str(verdict):22s} {outcome:9s} {secs}")
+        print(f"{case['id']:46s} {case['truth']:9s} {kind:10s} {str(verdict):22s} {outcome:9s} {secs}")
         results.append({"id": case["id"], "truth": case["truth"], "provenance": kind,
                         "verdict": verdict, "outcome": outcome, "seconds": secs,
                         "findings": [f.get("kind") for f in rep.get("findings", [])],
@@ -186,6 +203,8 @@ def main():
         fp = sum(1 for r in rows if r["truth"] == "genuine" and r["outcome"] == "WRONG")
         nc = sum(1 for r in rows if r["outcome"] == "no claim")
         decided = tp + fn + tn + fp
+        if not rows:
+            return fn, fp
         print(f"\n{label}  ({len(rows)} cases, {nc} declined to conclude)")
         print(f"  tampered flagged   {tp}   tampered missed  {fn}")
         print(f"  genuine clean      {tn}   genuine flagged  {fp}")
@@ -194,9 +213,16 @@ def main():
         return fn, fp
 
     print()
-    summary([r for r in results if r["provenance"] == "real"], "real photographs")
-    if any(r["provenance"] == "synthetic" for r in results):
-        summary([r for r in results if r["provenance"] == "synthetic"], "synthetic additions (generated, easier)")
+    for kind in KINDS:
+        rows = [r for r in results if r["provenance"] == kind]
+        if not rows:
+            continue
+        label = {
+            "real": "real photographs (the only cases that measure real accuracy)",
+            "real-crop": "crops of real photographs (same evidence, different framing)",
+            "synthetic": "synthetic additions (generated, much easier than a real implant)",
+        }[kind]
+        summary(rows, label)
 
     json.dump({"base": base, "results": results}, open(args.out, "w"), indent=1)
     print(f"\nsaved {args.out}")

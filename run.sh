@@ -27,7 +27,7 @@ fi
 
 export TC_PORT="${TC_PORT:-8787}"
 export TC_HOST="${TC_HOST:-127.0.0.1}"
-export TC_MODEL="${TC_MODEL:-google/gemini-4-argon}"
+export TC_MODEL="${TC_MODEL:-google/gemini-3.8-flash}"
 export TC_BASE_URL="${TC_BASE_URL:-https://openrouter.ai/api/v1}"
 echo "tampercheck: key from ${TC_KEY_SOURCE:-environment}, model ${TC_MODEL}, binding ${TC_HOST}:${TC_PORT}"
 exec node server.js

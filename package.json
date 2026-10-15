@@ -15,6 +15,7 @@
     "test:stream": "python3 test/sse_test.py",
     "test:signature": "python3 test/verify_signature.py",
     "bench": "python3 bench/run.py",
+    "models": "node tools/model_compare.js",
     "verify": "node tools/verify.js"
   },
   "keywords": [

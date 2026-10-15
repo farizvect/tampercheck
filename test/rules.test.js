@@ -8,15 +8,28 @@ const path = require('path');
 const { buildReport, scanForInstructions } = require('../lib/rules');
 
 const rules = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'rules.json'), 'utf8'));
+const devices = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'devices.json'), 'utf8'));
 const device = {
   brandId: 'ledger', brandName: 'Ledger', modelId: 'nano-x', modelName: 'Nano X',
   chips: [{ id: 'mcu', role: 'main processor', part: 'STM32WB55' }, { id: 'se', role: 'secure element', part: 'ST33' }],
   expect: ['main PCB', 'battery'], forbid: ['second PCB', 'bodge wires'], notes: '',
 };
 
+// Every part the reference data documents, for any model - what tells a swapped chip from a misread.
+const knownParts = devices.brands
+  .flatMap((b) => b.models)
+  .flatMap((m) => m.chips || [])
+  .flatMap((c) => (Array.isArray(c.part) ? c.part : [c.part]))
+  .filter(Boolean);
+
 const mk = (obs) => buildReport({
   device, observations: obs, taxonomy: rules, verdicts: rules.verdicts,
-  model: 'test', elapsedMs: 1,
+  model: 'test', elapsedMs: 1, knownParts,
+});
+
+const mkd = (d, obs) => buildReport({
+  device: d, observations: obs, taxonomy: rules, verdicts: rules.verdicts,
+  model: 'test', elapsedMs: 1, knownParts,
 });
 
 const base = {
@@ -104,16 +117,49 @@ t('a full orderable part number matches the family reference', () => {
 
 t('a reference that is a description is never used to accuse a board', () => {
   const d = { ...device, chips: [{ id: 'mcu', part: 'ARM Cortex-M4 @ 180 MHz', match: false }] };
-  const r = buildReport({ device: d, taxonomy: rules, verdicts: rules.verdicts, model: 'test', elapsedMs: 1,
-    observations: { ...base, chips: [{ id: 'mcu', part_marking: 'STM32U5G9', readable: true, region: 'center' }] } });
+  const r = mkd(d, { ...base, chips: [{ id: 'mcu', part_marking: 'STM32U5G9', readable: true, region: 'center' }] });
   assert.strictEqual(r.verdict, 'no_visible_anomalies');
 });
 
 t('a null reference is not compared either', () => {
   const d = { ...device, chips: [{ id: 'mcu', part: null }] };
-  const r = buildReport({ device: d, taxonomy: rules, verdicts: rules.verdicts, model: 'test', elapsedMs: 1,
-    observations: { ...base, chips: [{ id: 'mcu', part_marking: 'ANYTHING123', readable: true, region: 'center' }] } });
+  const r = mkd(d, { ...base, chips: [{ id: 'mcu', part_marking: 'ANYTHING123', readable: true, region: 'center' }] });
   assert.strictEqual(r.verdict, 'no_visible_anomalies');
+});
+
+// A model can ship more than one board revision under one name. The Nano X MCU is STM32WB55 on
+// revisions 1-3 and STM32WB35 on revision 4; accusing a genuine revision 4 board would be a false
+// positive on a device that is exactly what it should be.
+t('any listed revision is accepted', () => {
+  const d = { ...device, chips: [{ id: 'mcu', part: ['STM32WB55', 'STM32WB35'] }] };
+  for (const marking of ['STM32WB55', 'STM32WB35', 'STM32WB35CEU6', 'STM32WB55CEU6']) {
+    const r = mkd(d, { ...base, chips: [{ id: 'mcu', part_marking: marking, readable: true, region: 'center' }] });
+    assert.strictEqual(r.verdict, 'no_visible_anomalies', marking + ' should be accepted');
+  }
+});
+
+t('a part matching none of the listed revisions is still accused', () => {
+  const d = { ...device, chips: [{ id: 'mcu', part: ['STM32WB55', 'STM32WB35'] }] };
+  const r = mkd(d, { ...base, chips: [{ id: 'mcu', part_marking: 'STM32F042K6', readable: true, region: 'center' }] });
+  assert.strictEqual(r.verdict, 'anomalies');
+  assert.ok(r.findings.some((f) => f.kind === 'chip_marking_mismatch'));
+});
+
+// Reading a tiny laser-etched marking off a photo is error-prone. A marking that is a real part of
+// another model is a swapped chip; a marking that matches nothing documented is far more likely to
+// be a misread, so it must not be reported with the same confidence.
+t('a marking that is a real part of another model is reported as a swap', () => {
+  const r = mk({ ...base, chips: [{ id: 'mcu', part_marking: 'STM32F042K6', readable: true, region: 'center' }] });
+  assert.strictEqual(r.verdict, 'anomalies');
+  assert.ok(r.findings.some((f) => f.kind === 'chip_marking_mismatch' && f.severity === 'high'));
+});
+
+t('a marking that matches nothing documented is reported as unconfirmed, not as a swap', () => {
+  const r = mk({ ...base, chips: [{ id: 'mcu', part_marking: 'ST 4500L M20700', readable: true, region: 'bottom-right' }] });
+  assert.ok(r.findings.some((f) => f.kind === 'chip_marking_unverified' && f.severity === 'medium'),
+    'expected the softer finding, got: ' + JSON.stringify(r.findings.map((f) => f.kind)));
+  assert.ok(!r.findings.some((f) => f.kind === 'chip_marking_mismatch'), 'must not accuse on a possible misread');
+  assert.strictEqual(r.verdict, 'needs_closer_look');
 });
 
 t('retake advice names the chip that could not be read', () => {
