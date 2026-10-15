@@ -1,0 +1,254 @@
+{
+  "_note": "Genuine-board reference data. Precedence: manufacturer documentation > third-party checker prompt > null. A null means no source in this build documents it; the rule engine treats null as unknown and never turns it into a claim.",
+  "_provenance": {
+    "manufacturer": "ledger.com, support.ledger.com, trezor.io knowledge base, trezor-core docs/hardware.md, help.onekey.so",
+    "published_prompt": "some entries were cross-checked against a third-party checker's own prompt text, which is recoverable from its model output (the per-model chip list is restated in its retake_tips field)",
+    "third_party": "Saleem Rashid's Nano S write-up (saleemrashid.com)"
+  },
+  "brands": [
+    {
+      "id": "ledger",
+      "name": "Ledger",
+      "officialCheck": "Ledger Live -> Device -> genuine check",
+      "support": "https://support.ledger.com",
+      "models": [
+        {
+          "id": "nano-x",
+          "name": "Nano X",
+          "power": "battery",
+          "radio": "ble",
+          "chips": [
+            { "id": "mcu", "role": "main processor", "part": "STM32WB55", "source": "https://www.ledger.com/enhancing-the-ledger-nano-xs-security", "note": "revisions 1-3; revision 4 uses STM32WB35 per support.ledger.com/article/4404382029329-zd" },
+            { "id": "se", "role": "secure element", "part": "ST33", "source": "https://www.ledger.com/enhancing-the-ledger-nano-xs-security" }
+          ],
+          "expect": ["main PCB", "battery", "USB-C connector", "display", "2 buttons", "BLE antenna on the main PCB"],
+          "forbid": ["second PCB", "add-on board", "cellular/LTE module", "SIM chip", "external antenna", "bodge wires", "socketed chip"],
+          "notes": "Dual-chip design. The 2026 implant wave hid an add-on board with a shielded radio module in the case, plus enamelled wires to the main board."
+        },
+        {
+          "id": "nano-s",
+          "name": "Nano S",
+          "power": "usb-only",
+          "radio": "none",
+          "chips": [
+            { "id": "mcu", "role": "proxy processor", "part": "STM32F042K6", "source": "https://saleemrashid.com/2018/03/20/breaking-ledger-security-model/" },
+            { "id": "se", "role": "secure element", "part": "ST31H320", "source": "https://saleemrashid.com/2018/03/20/breaking-ledger-security-model/", "note": "independently confirmed by a third-party checker's prompt" }
+          ],
+          "expect": ["main PCB", "USB connector", "display", "2 buttons"],
+          "forbid": ["battery", "second PCB", "add-on board", "radio module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "No battery and no radio at all. Anything with an antenna or a shielded radio module does not belong."
+        },
+        {
+          "id": "nano-s-plus",
+          "name": "Nano S Plus",
+          "power": "usb-only",
+          "radio": "none",
+          "chips": [
+            { "id": "mcu", "role": "proxy processor", "part": "STM32", "source": "third-party checker prompt", "note": "exact part number not documented in the sources fetched for this build" },
+            { "id": "se", "role": "secure element", "part": null, "source": "not documented" }
+          ],
+          "expect": ["main PCB", "USB-C connector", "display", "2 buttons"],
+          "forbid": ["battery", "second PCB", "add-on board", "radio module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "No battery, no radio."
+        },
+        {
+          "id": "flex",
+          "name": "Flex",
+          "power": "battery",
+          "radio": "ble",
+          "chips": [
+            { "id": "mcu", "role": "main processor", "part": "STM32WB35", "source": "third-party checker prompt" },
+            { "id": "se", "role": "secure element", "part": null, "source": "not documented" }
+          ],
+          "expect": ["main PCB", "battery", "USB-C connector", "e-ink display", "buttons"],
+          "forbid": ["second PCB", "add-on board", "cellular/LTE module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "Ledger found an add-on board with a shielded radio module next to the battery on tampered Flex units. Kapton tape covers the MCU area."
+        },
+        {
+          "id": "stax",
+          "name": "Stax",
+          "power": "battery",
+          "radio": "ble",
+          "chips": [
+            { "id": "mcu", "role": "main processor", "part": null, "source": "prompt leak describes it only as a square STM32-style chip under Kapton tape" },
+            { "id": "se", "role": "secure element", "part": null, "source": "not documented" }
+          ],
+          "expect": ["main PCB", "battery", "USB-C connector", "touchscreen", "NFC antenna"],
+          "forbid": ["second PCB", "add-on board", "cellular/LTE module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "Official disassembled view published at support.ledger.com/article/4404382029329-zd."
+        },
+        {
+          "id": "nano-gen5",
+          "name": "Nano Gen5",
+          "power": "battery",
+          "radio": "ble",
+          "chips": [
+            { "id": "mcu", "role": "main processor", "part": "STM32WB35", "source": "https://support.ledger.com/article/4404382029329-zd", "note": "confirmed by a third-party checker's prompt" },
+            { "id": "se", "role": "secure element", "part": null, "source": "not documented" }
+          ],
+          "expect": ["main PCB", "battery", "USB-C connector", "display", "antenna flex"],
+          "forbid": ["second PCB", "add-on board", "cellular/LTE module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "Revision 4 of the Nano family. Check the MCU marking is sharp."
+        }
+      ]
+    },
+    {
+      "id": "trezor",
+      "name": "Trezor",
+      "officialCheck": "Trezor Suite -> device authenticity check",
+      "support": "https://trezor.io/support",
+      "models": [
+        {
+          "id": "safe-3",
+          "name": "Safe 3",
+          "power": "usb-only",
+          "radio": "none",
+          "chips": [
+            { "id": "mcu", "role": "main processor", "part": "ARM Cortex-M4 @ 180 MHz", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "Trezor publishes the core class, not the exact part number" },
+            { "id": "se", "role": "secure element", "part": "OPTIGA Trust M (V3)", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "CC EAL6+" }
+          ],
+          "expect": ["main PCB", "USB-C connector", "0.96in monochrome OLED", "two-button pad"],
+          "forbid": ["battery", "second PCB", "add-on board", "radio module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "No battery, no radio."
+        },
+        {
+          "id": "safe-5",
+          "name": "Safe 5",
+          "power": "usb-only",
+          "radio": "none",
+          "chips": [
+            { "id": "mcu", "role": "main processor", "part": "ARM Cortex-M33 @ 160 MHz", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "exact part not published" },
+            { "id": "se", "role": "secure element", "part": "OPTIGA Trust M (V3)", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "CC EAL6+" }
+          ],
+          "expect": ["main PCB", "USB-C connector", "1.54in colour touchscreen", "microSD slot"],
+          "forbid": ["battery", "second PCB", "add-on board", "radio module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "No battery, no radio."
+        },
+        {
+          "id": "safe-7",
+          "name": "Safe 7",
+          "power": "battery",
+          "radio": "ble",
+          "chips": [
+            { "id": "mcu", "role": "hardened security MCU", "part": "STM32U5G", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "ARM Cortex-M33 @ 160 MHz" },
+            { "id": "se", "role": "secure element 1", "part": "OPTIGA Trust M (V3)", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security" },
+            { "id": "se2", "role": "secure element 2", "part": "TROPIC01", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security" }
+          ],
+          "expect": ["main PCB", "LiFePO4 battery", "USB-C connector", "2.5in touchscreen", "Qi2 wireless charging coil", "BLE antenna"],
+          "forbid": ["second PCB", "add-on board", "cellular/LTE module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "Two secure elements is the design, not an anomaly."
+        },
+        {
+          "id": "model-one",
+          "name": "Model One",
+          "power": "usb-only",
+          "radio": "none",
+          "chips": [
+            { "id": "mcu", "role": "main processor", "part": "ARM Cortex-M3 @ 120 MHz", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "no secure element - the device relies on the MCU alone" }
+          ],
+          "expect": ["main PCB", "Micro-USB connector", "128x64 OLED", "2 buttons"],
+          "forbid": ["battery", "secure element", "second PCB", "add-on board", "radio module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "No secure element, no battery, no radio. Case is ultrasonically welded."
+        },
+        {
+          "id": "model-t",
+          "name": "Model T",
+          "power": "usb-only",
+          "radio": "none",
+          "chips": [
+            { "id": "mcu", "role": "main processor", "part": "STM32F427VIT6", "source": "https://raw.githubusercontent.com/trezor/trezor-core/master/docs/hardware.md", "note": "ARM Cortex-M4 @ 168 MHz; no secure element" }
+          ],
+          "expect": ["main PCB", "USB-C connector", "240x240 LCD touchscreen", "microSD slot"],
+          "forbid": ["battery", "secure element", "second PCB", "add-on board", "radio module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "Open-source hardware: schematic, BOM and reference board photos are published in trezor-core/docs/hardware."
+        }
+      ]
+    },
+    {
+      "id": "onekey",
+      "name": "OneKey",
+      "officialCheck": "OneKey App -> Genuine check",
+      "support": "https://help.onekey.so",
+      "models": [
+        {
+          "id": "pro",
+          "name": "Pro",
+          "power": "battery",
+          "radio": "ble",
+          "chips": [
+            { "id": "mcu", "role": "main processor", "part": "ST-logo BGA", "source": "third-party checker prompt", "note": "OneKey does not publish the part number" },
+            { "id": "se", "role": "secure element", "part": "THD89", "qty": 4, "source": "third-party checker prompt" }
+          ],
+          "expect": ["OLED screen", "main frame", "back cover", "L-shaped black main PCB", "wireless charging coil (ANT-FPC)", "stainless steel bracket", "730mAh lithium battery", "camera", "button flex", "vibration motor", "speaker", "magnets"],
+          "forbid": ["second PCB", "add-on board", "cellular/LTE module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "Four THD89 secure elements is the design, not an anomaly. Official parts list in OneKey's integrity article."
+        },
+        {
+          "id": "pro-2",
+          "name": "Pro 2",
+          "power": "battery",
+          "radio": "ble",
+          "chips": [
+            { "id": "mcu", "role": "main processor", "part": "STM32H747", "source": "third-party checker prompt" },
+            { "id": "se", "role": "secure element", "part": "THD89", "qty": 4, "source": "third-party checker prompt" }
+          ],
+          "expect": ["main PCB", "battery", "USB-C connector", "colour display"],
+          "forbid": ["second PCB", "add-on board", "cellular/LTE module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "Four THD89 secure elements is the design."
+        },
+        {
+          "id": "touch",
+          "name": "Touch",
+          "power": "battery",
+          "radio": "ble",
+          "chips": [
+            { "id": "mcu", "role": "application MCU", "part": null, "source": "prompt leak describes a large BGA chip only" },
+            { "id": "se", "role": "secure element", "part": null, "source": "not documented" }
+          ],
+          "expect": ["main PCB", "battery", "USB-C connector", "touchscreen"],
+          "forbid": ["second PCB", "add-on board", "cellular/LTE module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": ""
+        },
+        {
+          "id": "mini",
+          "name": "Mini",
+          "power": "usb-only",
+          "radio": "none",
+          "chips": [
+            { "id": "mcu", "role": "main microcontroller", "part": null, "source": "prompt leak gives the package only: LQFP-64" },
+            { "id": "se", "role": "secure element", "part": null, "source": "prompt leak gives the package only: 8-pin" }
+          ],
+          "expect": ["main PCB", "USB-C connector", "display"],
+          "forbid": ["battery", "second PCB", "add-on board", "radio module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "No battery and no radio."
+        },
+        {
+          "id": "classic-1s",
+          "name": "Classic 1S",
+          "power": "battery",
+          "radio": "none",
+          "chips": [
+            { "id": "mcu", "role": "main MCU", "part": null, "source": "not documented" },
+            { "id": "se", "role": "secure element", "part": "THD89", "source": "third-party checker prompt" }
+          ],
+          "expect": ["main PCB", "battery", "USB-C connector", "monochrome display", "2 buttons"],
+          "forbid": ["second PCB", "add-on board", "radio module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "Classic 1S has no radio; the 1S Pure has no battery either."
+        },
+        {
+          "id": "classic-1s-pure",
+          "name": "Classic 1S Pure",
+          "power": "usb-only",
+          "radio": "none",
+          "chips": [
+            { "id": "mcu", "role": "main microcontroller", "part": null, "source": "not documented" },
+            { "id": "se", "role": "secure element", "part": null, "source": "not documented" }
+          ],
+          "expect": ["main PCB", "USB-C connector", "monochrome display", "2 buttons"],
+          "forbid": ["battery", "second PCB", "add-on board", "radio module", "SIM chip", "external antenna", "bodge wires"],
+          "notes": "No battery, no radio."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>tampercheck · hardware wallet board inspector</title>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<header>
+  <h1>tampercheck</h1>
+  <p class="lede">Open your hardware wallet, photograph the board, and see whether anything was added that should not be there.</p>
+  <p class="fine">Self-hosted. Photos go to the vision model you configured and are not stored. The verdict is decided by rules in code, not by the model.</p>
+</header>
+
+<main>
+  <section class="panel" id="p-device">
+    <h2><span class="n">1</span> device</h2>
+    <div class="row">
+      <label for="brand">brand</label>
+      <select id="brand" autocomplete="off"><option value="">loading…</option></select>
+      <label for="model">model</label>
+      <select id="model" disabled><option value="">-</option></select>
+    </div>
+    <div class="spec" id="spec" hidden></div>
+  </section>
+
+  <section class="panel" id="p-photos">
+    <h2><span class="n">2</span> photos</h2>
+    <p class="hint" id="shot-hint">Pick a device above and this tells you which shots to take.</p>
+    <div class="slots" id="slots"></div>
+    <div class="actions">
+      <button type="button" id="pick">choose photos</button>
+      <button type="button" id="shoot">take a photo</button>
+      <span class="fine">or drag and drop, or paste from the clipboard</span>
+    </div>
+    <input type="file" id="file" accept="image/*" multiple hidden>
+    <input type="file" id="cam" accept="image/*" capture="environment" hidden>
+    <p class="fine">Photos are resized to 2576&nbsp;px and re-encoded in your browser, which also strips EXIF (including GPS).</p>
+  </section>
+
+  <section class="panel" id="p-run">
+    <h2><span class="n">3</span> check</h2>
+    <div class="row">
+      <button type="button" id="go" disabled>run inspection</button>
+      <span class="fine" id="estimate">usually 10&ndash;20&nbsp;s, about $0.02 of model usage</span>
+    </div>
+    <div id="progress" hidden aria-live="polite"></div>
+    <p id="error" class="error" hidden role="alert"></p>
+  </section>
+
+  <section class="panel" id="report" hidden aria-live="polite"></section>
+</main>
+
+<footer class="fine">
+  <p>Automated visual observations, not a certification. Photos cannot prove a device is safe: run the manufacturer's own genuine check as well.</p>
+</footer>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>

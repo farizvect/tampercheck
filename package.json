@@ -1,0 +1,37 @@
+{
+  "name": "tampercheck",
+  "version": "1.0.0",
+  "description": "Self-hosted hardware-wallet board inspector: photograph the opened board and get an automated read on whether anything was added.",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/rules.test.js",
+    "test:live": "python3 test/e2e.py",
+    "test:stream": "python3 test/sse_test.py"
+  },
+  "keywords": [
+    "hardware-wallet",
+    "supply-chain",
+    "security",
+    "tamper-detection",
+    "ledger",
+    "trezor",
+    "onekey",
+    "vision"
+  ],
+  "files": [
+    "server.js",
+    "lib/",
+    "public/",
+    "data/devices.json",
+    "data/rules.json",
+    "run.sh",
+    "README.md",
+    "LICENSE"
+  ]
+}
