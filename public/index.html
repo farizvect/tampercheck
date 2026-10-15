@@ -75,8 +75,10 @@
       <div class="actions">
         <button type="button" id="pick" data-i18n="choose_photos">choose photos</button>
         <button type="button" id="shoot" data-i18n="take_photo">take a photo</button>
-        <span class="fine" data-i18n="or_drag">or drag and drop, or paste from the clipboard</span>
+        <button type="button" id="paste" hidden data-i18n="paste">paste</button>
+        <span class="fine" id="drag-hint">or drag and drop, or paste from the clipboard</span>
       </div>
+      <p class="fine paste-note" id="paste-note" role="status" hidden></p>
       <input type="file" id="file" accept="image/*" multiple hidden>
       <input type="file" id="cam" accept="image/*" capture="environment" hidden>
       <p class="fine" data-i18n="resized_note">Photos are resized to 2576 px and re-encoded in your browser, which also strips EXIF (including GPS).</p>

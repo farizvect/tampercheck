@@ -5,7 +5,7 @@
 // cached here: a cached verdict would be a stale claim about a device, which is exactly the kind
 // of thing this tool exists to avoid.
 
-const CACHE = 'tampercheck-shell-v1';
+const CACHE = 'tampercheck-shell-v2';
 const SHELL = [
   '/',
   '/assets/styles.css',
@@ -38,11 +38,16 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   if (url.pathname.startsWith('/assets/') || url.pathname === '/manifest.webmanifest') {
+    // Stale-while-revalidate. Cache-first would mean a deployed fix never reaches an installed app:
+    // the cache is only refilled on a miss, and there is never a miss. Here the shell still loads
+    // instantly from cache, and the fresh copy is fetched behind it for the next load.
     e.respondWith(
-      caches.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
-        return res;
+      caches.open(CACHE).then((c) => c.match(e.request).then((hit) => {
+        const fresh = fetch(e.request).then((res) => {
+          if (res && res.ok) c.put(e.request, res.clone());
+          return res;
+        }).catch(() => hit);
+        return hit || fresh;
       }))
     );
   }

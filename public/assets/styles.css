@@ -145,6 +145,19 @@ button.big { padding: .6rem 1.15rem; min-height: 2.6rem; font-size: 13px; }
 .slot { border: 1px dashed var(--line-2); padding: .75rem .85rem; display: grid; gap: .6rem; transition: border-color .12s; }
 .slot.filled { border-style: solid; }
 .slot.drag { border-color: var(--ink); background: var(--raise); }
+/* A pasted photo can land in a slot that is off-screen, so the slot announces itself. The colour
+   change stays even when motion is off, so the signal is never animation-only. */
+.slot.flash { border-color: var(--ok); animation: slotflash 1.5s ease-out 1; }
+@keyframes slotflash {
+  0%, 35% { background: var(--raise); }
+  100% { background: none; }
+}
+@media (prefers-reduced-motion: reduce) { .slot.flash { animation: none; } }
+/* Dropping anywhere in the panel is allowed, so the panel has to show that it will take the file. */
+#p-photos.drop { border-color: var(--ink); }
+#p-photos.drop .pbody { background: var(--raise); }
+.paste-note { color: var(--mid); }
+.paste-note.warn { color: var(--warn); }
 .slot-head { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
 .slot-name { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mid); }
 .slot-req { font-size: 10.5px; color: var(--faint); border: 1px solid var(--line-2); padding: 0 .32rem; }

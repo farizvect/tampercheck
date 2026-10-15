@@ -37,8 +37,14 @@
       try_sample: 'try a sample photo',
       sample_busy: 'loading the sample…',
       sample_ready: 'Sample loaded. Run it to see what a real implant looks like.',
-      choose_photos: 'choose photos', take_photo: 'take a photo',
-      or_drag: 'or drag and drop, or paste from the clipboard',
+      choose_photos: 'choose photos', take_photo: 'take a photo', paste: 'paste',
+      or_drag: (key) => `or drag and drop, or paste (${key})`,
+      paste_none: 'No image on the clipboard. Copy a photo first, then paste again.',
+      paste_not_image: 'That was not an image. Copy a photo first, then paste again.',
+      paste_denied: 'The browser would not hand over the clipboard. Paste with the keyboard instead, or choose a photo.',
+      paste_busy: 'A check is running. Paste again once it finishes.',
+      paste_into: (names) => `pasted into ${names}`,
+      drop_into: (names) => `dropped into ${names}`,
       resized_note: 'Photos are resized to 2576 px and re-encoded in your browser, which also strips EXIF (including GPS).',
       run_inspection: 'run inspection', run_again: 'run again', inspecting: 'inspecting…',
       step_of: (d, n) => `step ${d} of ${n}`,
@@ -124,8 +130,14 @@
       try_sample: 'coba foto contoh',
       sample_busy: 'memuat foto contoh…',
       sample_ready: 'Foto contoh dimuat. Jalankan untuk melihat bagaimana implant asli terlihat.',
-      choose_photos: 'pilih foto', take_photo: 'ambil foto',
-      or_drag: 'atau tarik dan lepas, atau tempel dari clipboard',
+      choose_photos: 'pilih foto', take_photo: 'ambil foto', paste: 'tempel',
+      or_drag: (key) => `atau tarik dan lepas, atau tempel (${key})`,
+      paste_none: 'Tidak ada gambar di clipboard. Salin foto dulu, lalu tempel lagi.',
+      paste_not_image: 'Yang ditempel bukan gambar. Salin foto dulu, lalu tempel lagi.',
+      paste_denied: 'Browser menolak membaca clipboard. Tempel pakai keyboard, atau pilih foto.',
+      paste_busy: 'Pemeriksaan sedang berjalan. Tempel lagi setelah selesai.',
+      paste_into: (names) => `ditempel ke ${names}`,
+      drop_into: (names) => `dilepas ke ${names}`,
       resized_note: 'Foto diperkecil ke 2576 px dan di-encode ulang di browser kamu, sekaligus menghapus EXIF (termasuk GPS).',
       run_inspection: 'jalankan pemeriksaan', run_again: 'periksa lagi', inspecting: 'memeriksa…',
       step_of: (d, n) => `langkah ${d} dari ${n}`,
@@ -263,9 +275,19 @@
   };
 
   // ---------- language plumbing ----------
+  // The paste shortcut is not the same key on every machine, and a hint that names the wrong key is
+  // worse than one that names none.
+  const PASTE_KEY = (() => {
+    const p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+    return /Mac|iPhone|iPad|iPod/i.test(p) ? '\u2318V' : 'Ctrl+V';
+  })();
+
   function applyStatic() {
     document.documentElement.lang = lang;
     for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+    // Set after the sweep: the hint needs the platform, and the sweep calls t() with no arguments.
+    const hint = $('#drag-hint');
+    if (hint) hint.textContent = t('or_drag', PASTE_KEY);
   }
 
   function setLang(next) {
@@ -482,9 +504,16 @@
         p && !p.loading ? h('button', { type: 'button', class: 'tiny', text: t('remove'), disabled: busy, onclick: () => { lastReport = null; photos.delete(s.id); renderSlots(); sync(); } }) : null);
 
       const el = h('div', { class: 'slot' + (p && !p.loading ? ' filled' : '') }, head, body, actions);
-      el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('drag'); });
+      el.dataset.slot = s.id; // flashSlot and pasteInto find the slot again by this
+      el.addEventListener('dragover', (e) => { if (!dragHasFiles(e)) return; e.preventDefault(); el.classList.add('drag'); });
       el.addEventListener('dragleave', () => el.classList.remove('drag'));
-      el.addEventListener('drop', (e) => { e.preventDefault(); el.classList.remove('drag'); const f = e.dataTransfer.files; if (f && f.length) { lastReport = null; addFiles(f, s.id); } });
+      el.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // the panel handler must not take the same drop a second time
+        el.classList.remove('drag');
+        const f = imagesFrom(e.dataTransfer);
+        if (f.length) pasteInto(f, 'drop', s.id);
+      });
       return el;
     }));
   }
@@ -498,6 +527,63 @@
     return bits.join(' ');
   }
 
+  // ---------- getting a photo in ----------
+  // What a paste or a drop actually hands over. clipboardData.files is empty when the image was
+  // copied from a web page in some browsers, and empty for a screenshot in others: the image is
+  // only in items then. Reading both is the difference between paste working and paste doing
+  // nothing at all.
+  function imagesFrom(dt) {
+    if (!dt) return [];
+    const out = [], seen = new Set();
+    const take = (f) => {
+      if (!f || !f.type || !f.type.startsWith('image/') || seen.has(f)) return;
+      seen.add(f); // items and files can carry the same File, and it must not be counted twice
+      out.push(f);
+    };
+    for (const it of dt.items || []) if (it.kind === 'file') take(it.getAsFile());
+    for (const f of dt.files || []) take(f);
+    return out;
+  }
+  const dragHasFiles = (e) => Array.from((e.dataTransfer && e.dataTransfer.types) || []).includes('Files');
+
+  // Says what happened, in the panel the user is looking at. The action bar is not the place for
+  // this: sync() rewrites it, and it is about the run, not about the photo that just arrived.
+  let noteTimer = null;
+  function note(msg, level) {
+    const el = $('#paste-note');
+    if (!el) return;
+    clearTimeout(noteTimer);
+    el.hidden = !msg;
+    el.textContent = msg || '';
+    el.className = 'fine paste-note' + (level ? ' ' + level : '');
+    if (msg) noteTimer = setTimeout(() => { el.hidden = true; }, 6000);
+  }
+
+  function flashSlot(id) {
+    const el = document.querySelector(`.slot[data-slot="${id}"]`);
+    if (!el) return;
+    el.classList.remove('flash');
+    void el.offsetWidth; // restart the animation if the same slot is pasted into twice
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1500);
+  }
+
+  // A pasted or dropped photo goes through exactly the same preparation and quality gate as a
+  // chosen one. The additions are telling the user which slot took it and making sure it is on
+  // screen. `how` only decides the wording: saying "pasted" about a drop would be wrong.
+  async function pasteInto(files, how = 'paste', target) {
+    const before = new Set(photos.keys());
+    await addFiles(files, target);
+    const landed = SLOTS.filter((s) => photos.has(s.id) && !before.has(s.id));
+    if (!landed.length) return;
+    for (const s of landed) flashSlot(s.id);
+    note(t(how === 'drop' ? 'drop_into' : 'paste_into', landed.map((s) => t(s.nameKey)).join(', ')));
+    const first = document.querySelector(`.slot[data-slot="${landed[0].id}"]`);
+    if (first && first.getBoundingClientRect().top < 0) {
+      first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
   $('#pick').addEventListener('click', () => pickFor(null));
   $('#shoot').addEventListener('click', () => { pendingSlot = null; $('#cam').click(); });
   $('#file').addEventListener('change', (e) => {
@@ -505,7 +591,73 @@
     addFiles(e.target.files, target); e.target.value = '';
   });
   $('#cam').addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
-  document.addEventListener('paste', (e) => { const f = Array.from(e.clipboardData?.files || []); if (f.length) { e.preventDefault(); addFiles(f); } });
+
+  // A paste is only ours when it carries an image. A text paste must still reach whatever field the
+  // user is typing in, so those are left alone, and so is a clipboard with no file on it at all.
+  document.addEventListener('paste', (e) => {
+    const tag = (document.activeElement && document.activeElement.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    const files = imagesFrom(e.clipboardData);
+    if (files.length) {
+      e.preventDefault();
+      if (busy) { note(t('paste_busy'), 'warn'); return; }
+      pasteInto(files);
+      return;
+    }
+    const types = Array.from((e.clipboardData && e.clipboardData.types) || []);
+    if (!types.includes('Files')) return; // a text paste: not ours to comment on
+    e.preventDefault();
+    if (!busy) note(t('paste_not_image'), 'warn');
+  });
+
+  // One-click paste, for anyone who would rather not know the shortcut. The Clipboard API needs a
+  // user gesture and a permission, and is missing in some browsers, so the button only appears
+  // where it can actually work. The keyboard path is there either way.
+  if (navigator.clipboard && navigator.clipboard.read) $('#paste').hidden = false;
+  $('#paste').addEventListener('click', async () => {
+    if (busy) { note(t('paste_busy'), 'warn'); return; }
+    try {
+      const items = await navigator.clipboard.read();
+      const files = [];
+      for (const it of items) {
+        const type = (it.types || []).find((x) => x.startsWith('image/'));
+        if (!type) continue;
+        const blob = await it.getType(type);
+        files.push(new File([blob], `clipboard.${type.split('/')[1] || 'png'}`, { type }));
+      }
+      if (!files.length) { note(t('paste_none'), 'warn'); return; }
+      await pasteInto(files);
+    } catch {
+      // Denied, or the clipboard holds something the API will not read.
+      note(t('paste_denied'), 'warn');
+    }
+  });
+
+  // Dropping works anywhere in the panel, not only on a slot: aiming at a small target while
+  // holding a phone is the kind of thing that makes people give up. A drop that lands on a slot is
+  // still routed to that slot, because the slot handler stops the event here.
+  const photoPanel = $('#p-photos');
+  photoPanel.addEventListener('dragover', (e) => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    photoPanel.classList.add('drop');
+  });
+  photoPanel.addEventListener('dragleave', (e) => {
+    if (e.target === photoPanel || !photoPanel.contains(e.relatedTarget)) photoPanel.classList.remove('drop');
+  });
+  photoPanel.addEventListener('drop', (e) => {
+    photoPanel.classList.remove('drop');
+    const files = imagesFrom(e.dataTransfer);
+    const any = (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) || 0;
+    if (!files.length) {
+      if (any) { e.preventDefault(); if (!busy) note(t('paste_not_image'), 'warn'); }
+      return;
+    }
+    e.preventDefault();
+    if (busy) { note(t('paste_busy'), 'warn'); return; }
+    pasteInto(files, 'drop');
+  });
+
   $('#lang').addEventListener('change', (e) => setLang(e.target.value));
 
   // ---------- navigation ----------
@@ -633,7 +785,7 @@
 
     // While a run is in flight the inputs are frozen: leaving them live makes it unclear whether
     // to wait or to change something.
-    for (const id of ['#pick', '#shoot', '#sample', '#brand', '#model']) {
+    for (const id of ['#pick', '#shoot', '#paste', '#sample', '#brand', '#model']) {
       const el = $(id);
       if (el) el.disabled = busy || (id === '#model' && !brand);
     }
