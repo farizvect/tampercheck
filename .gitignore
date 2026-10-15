@@ -5,6 +5,13 @@ node_modules/
 # Reports and the cache index are per-install data, not source.
 data/reports/
 
+# The signing key is generated per install and must never be published.
+data/report-signing-key.pem
+
+# Benchmark images are downloaded from their published sources, not vendored.
+bench/images/
+bench/results.json
+
 *.log
 .DS_Store
 __pycache__/

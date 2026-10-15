@@ -5,57 +5,109 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <title>tampercheck · hardware wallet board inspector</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/assets/icon-192.png">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="theme-color" content="#0a0a0a">
 <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
 <header>
-  <h1>tampercheck</h1>
-  <p class="lede">Open your hardware wallet, photograph the board, and see whether anything was added that should not be there.</p>
-  <p class="fine">Self-hosted. Photos go to the vision model you configured and are not stored. The verdict is decided by rules in code, not by the model.</p>
+  <div class="topbar">
+    <h1>tampercheck</h1>
+    <label class="langpick">
+      <span data-i18n="language">language</span>
+      <select id="lang" autocomplete="off">
+        <option value="en">English</option>
+        <option value="id">Bahasa Indonesia</option>
+      </select>
+    </label>
+  </div>
+  <p class="lede" data-i18n="lede">Open your hardware wallet, photograph the board, and see whether anything was added that should not be there.</p>
 </header>
 
+<nav class="rail" id="rail" aria-label="steps">
+  <button type="button" class="rail-step" data-goto="1">
+    <span class="rn">1</span><span class="rt" data-i18n="step_device">device</span><span class="rs" id="rs-1"></span>
+  </button>
+  <span class="rail-sep" aria-hidden="true"></span>
+  <button type="button" class="rail-step" data-goto="2">
+    <span class="rn">2</span><span class="rt" data-i18n="step_photos">photos</span><span class="rs" id="rs-2"></span>
+  </button>
+  <span class="rail-sep" aria-hidden="true"></span>
+  <button type="button" class="rail-step" data-goto="3">
+    <span class="rn">3</span><span class="rt" data-i18n="step_check">check</span><span class="rs" id="rs-3"></span>
+  </button>
+</nav>
+
 <main>
-  <section class="panel" id="p-device">
-    <h2><span class="n">1</span> device</h2>
-    <div class="row">
-      <label for="brand">brand</label>
-      <select id="brand" autocomplete="off"><option value="">loading…</option></select>
-      <label for="model">model</label>
-      <select id="model" disabled><option value="">-</option></select>
+  <section class="panel" id="p-device" data-step="1">
+    <div class="phead-row">
+      <h2><span class="n">1</span> <span data-i18n="step_device">device</span></h2>
+      <span class="psum" id="sum-device" hidden></span>
+      <button type="button" class="tiny edit" id="edit-device" hidden data-i18n="change">change</button>
     </div>
-    <div class="spec" id="spec" hidden></div>
+    <div class="pbody" id="body-device">
+      <div class="row">
+        <label for="brand" data-i18n="brand">brand</label>
+        <select id="brand" autocomplete="off"><option value="">…</option></select>
+        <label for="model" data-i18n="model">model</label>
+        <select id="model" disabled><option value="">-</option></select>
+      </div>
+      <div class="spec" id="spec" hidden></div>
+    </div>
   </section>
 
-  <section class="panel" id="p-photos">
-    <h2><span class="n">2</span> photos</h2>
-    <p class="hint" id="shot-hint">Pick a device above and this tells you which shots to take.</p>
-    <div class="slots" id="slots"></div>
-    <div class="actions">
-      <button type="button" id="pick">choose photos</button>
-      <button type="button" id="shoot">take a photo</button>
-      <span class="fine">or drag and drop, or paste from the clipboard</span>
+  <section class="panel" id="p-photos" data-step="2">
+    <div class="phead-row">
+      <h2><span class="n">2</span> <span data-i18n="step_photos">photos</span></h2>
+      <span class="psum" id="sum-photos" hidden></span>
+      <button type="button" class="tiny" id="sample" data-i18n="try_sample">try a sample photo</button>
+      <button type="button" class="tiny edit" id="edit-photos" hidden data-i18n="change">change</button>
     </div>
-    <input type="file" id="file" accept="image/*" multiple hidden>
-    <input type="file" id="cam" accept="image/*" capture="environment" hidden>
-    <p class="fine">Photos are resized to 2576&nbsp;px and re-encoded in your browser, which also strips EXIF (including GPS).</p>
+    <div class="pbody">
+      <p class="hint" id="shot-hint" data-i18n="hint_default">Pick a device above and this tells you which shots to take.</p>
+      <div class="slots" id="slots"></div>
+      <div class="actions">
+        <button type="button" id="pick" data-i18n="choose_photos">choose photos</button>
+        <button type="button" id="shoot" data-i18n="take_photo">take a photo</button>
+        <span class="fine" data-i18n="or_drag">or drag and drop, or paste from the clipboard</span>
+      </div>
+      <input type="file" id="file" accept="image/*" multiple hidden>
+      <input type="file" id="cam" accept="image/*" capture="environment" hidden>
+      <p class="fine" data-i18n="resized_note">Photos are resized to 2576 px and re-encoded in your browser, which also strips EXIF (including GPS).</p>
+    </div>
   </section>
 
-  <section class="panel" id="p-run">
-    <h2><span class="n">3</span> check</h2>
-    <div class="row">
-      <button type="button" id="go" disabled>run inspection</button>
-      <span class="fine" id="estimate">usually 10&ndash;20&nbsp;s, about $0.02 of model usage</span>
+  <section class="panel" id="p-run" data-step="3" hidden>
+    <div class="phead-row">
+      <h2><span class="n">3</span> <span data-i18n="step_check">check</span></h2>
     </div>
-    <div id="progress" hidden aria-live="polite"></div>
-    <p id="error" class="error" hidden role="alert"></p>
+    <div class="pbody">
+      <div id="progress" aria-live="polite"></div>
+    </div>
   </section>
 
-  <section class="panel" id="report" hidden aria-live="polite"></section>
+  <section class="panel" id="report" hidden aria-live="polite" tabindex="-1"></section>
 </main>
 
 <footer class="fine">
-  <p>Automated visual observations, not a certification. Photos cannot prove a device is safe: run the manufacturer's own genuine check as well.</p>
+  <p data-i18n="footer">Automated visual observations, not a certification. Photos cannot prove a device is safe: run the manufacturer's own genuine check as well.</p>
+  <p data-i18n="fine_selfhosted">Self-hosted. Photos go to the vision model you configured and are not stored. The verdict is decided by rules in code, not by the model.</p>
 </footer>
+
+<!-- Always reachable: the primary action, and what is happening right now. -->
+<div class="actionbar" id="actionbar">
+  <div class="ab-progress" id="ab-progress" hidden><i id="ab-bar"></i></div>
+  <div class="ab-inner">
+    <div class="ab-text">
+      <span class="ab-status" id="ab-status"></span>
+      <span class="ab-sub" id="ab-sub"></span>
+    </div>
+    <button type="button" id="go" class="primary big" disabled data-i18n="run_inspection">run inspection</button>
+  </div>
+  <p id="error" class="error" hidden role="alert"></p>
+</div>
 
 <script src="/assets/app.js"></script>
 </body>

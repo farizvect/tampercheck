@@ -1,0 +1,43 @@
+{
+  "_note": "Labelled cases for the benchmark. Images are fetched from their published source at run time and checked against the sha256 here, so no third-party photo is redistributed with this repository. Add a case by adding an entry: truth is what the device actually is, provenance is 'real' for a photograph of a real device and 'synthetic' for a variant generated from a genuine photo.",
+  "_verdict_classes": {
+    "flagged": "verdict is anomalies or board_mismatch - the app is saying something is wrong",
+    "clean": "verdict is no_visible_anomalies - the app is saying nothing is visibly wrong",
+    "no_claim": "verdict is unusable_photo or needs_closer_look - the app declines to conclude"
+  },
+  "cases": [
+    {
+      "id": "ledger-nanox-implant-real",
+      "brand": "ledger",
+      "model": "nano-x",
+      "truth": "tampered",
+      "provenance": "real",
+      "url": "https://grandideastudio.com/media/_portfolio/ledger_implant_img1.jpg",
+      "sha256": "f2d978b6f53e40b549e3fb6051a96952b500d925378135cbaef296f8471ae85d",
+      "source": "https://grandideastudio.com/portfolio/security/ledger-hardware-implant/",
+      "note": "A real implant recovered from a Ledger Nano X: a second PCB carrying test pads, wired to the main board. The reference case for a true positive."
+    },
+    {
+      "id": "trezor-modelt-top-genuine",
+      "brand": "trezor",
+      "model": "model-t",
+      "truth": "genuine",
+      "provenance": "real",
+      "url": "https://raw.githubusercontent.com/trezor/trezor-core/master/docs/hardware/model-t-top-v12.jpg",
+      "sha256": "d6fe074eb7e22551820c152204ed76c456fb2e9c8003c51096d9e16e8093d0d3",
+      "source": "https://github.com/trezor/trezor-core/tree/master/docs/hardware",
+      "note": "Published reference photo of a genuine Model T board, top side. Trezor publishes schematic, BOM and board photos."
+    },
+    {
+      "id": "trezor-modelt-bottom-genuine",
+      "brand": "trezor",
+      "model": "model-t",
+      "truth": "genuine",
+      "provenance": "real",
+      "url": "https://raw.githubusercontent.com/trezor/trezor-core/master/docs/hardware/model-t-bottom-v12.jpg",
+      "sha256": "b2a41a168acc0007ec5fab0ddc724265aa8eb3ce08b40c9f2df6d8e7e0fa8700",
+      "source": "https://github.com/trezor/trezor-core/tree/master/docs/hardware",
+      "note": "Published reference photo of a genuine Model T board, bottom side."
+    }
+  ]
+}

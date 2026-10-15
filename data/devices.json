@@ -1,5 +1,5 @@
 {
-  "_note": "Genuine-board reference data. Precedence: manufacturer documentation > third-party checker prompt > null. A null means no source in this build documents it; the rule engine treats null as unknown and never turns it into a claim.",
+  "_note": "Genuine-board reference data. Precedence: manufacturer documentation > third-party checker prompt > null. A null means no source in this build documents it; the rule engine treats null as unknown and never turns it into a claim. A chip entry with \"match\": false is a description (a core class, a package, a family) rather than a part number, so it is shown to the model but never used to accuse a board of carrying the wrong chip.",
   "_provenance": {
     "manufacturer": "ledger.com, support.ledger.com, trezor.io knowledge base, trezor-core docs/hardware.md, help.onekey.so",
     "published_prompt": "some entries were cross-checked against a third-party checker's own prompt text, which is recoverable from its model output (the per-model chip list is restated in its retake_tips field)",
@@ -44,7 +44,7 @@
           "power": "usb-only",
           "radio": "none",
           "chips": [
-            { "id": "mcu", "role": "proxy processor", "part": "STM32", "source": "third-party checker prompt", "note": "exact part number not documented in the sources fetched for this build" },
+            { "id": "mcu", "role": "proxy processor", "part": "STM32", "match": false, "source": "third-party checker prompt", "note": "family only; the exact part number is not documented in the sources fetched for this build" },
             { "id": "se", "role": "secure element", "part": null, "source": "not documented" }
           ],
           "expect": ["main PCB", "USB-C connector", "display", "2 buttons"],
@@ -104,8 +104,8 @@
           "power": "usb-only",
           "radio": "none",
           "chips": [
-            { "id": "mcu", "role": "main processor", "part": "ARM Cortex-M4 @ 180 MHz", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "Trezor publishes the core class, not the exact part number" },
-            { "id": "se", "role": "secure element", "part": "OPTIGA Trust M (V3)", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "CC EAL6+" }
+            { "id": "mcu", "role": "main processor", "part": "ARM Cortex-M4 @ 180 MHz", "match": false, "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "Trezor publishes the core class, not the exact part number" },
+            { "id": "se", "role": "secure element", "part": "OPTIGA Trust M (V3)", "match": false, "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "CC EAL6+" }
           ],
           "expect": ["main PCB", "USB-C connector", "0.96in monochrome OLED", "two-button pad"],
           "forbid": ["battery", "second PCB", "add-on board", "radio module", "SIM chip", "external antenna", "bodge wires"],
@@ -117,8 +117,8 @@
           "power": "usb-only",
           "radio": "none",
           "chips": [
-            { "id": "mcu", "role": "main processor", "part": "ARM Cortex-M33 @ 160 MHz", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "exact part not published" },
-            { "id": "se", "role": "secure element", "part": "OPTIGA Trust M (V3)", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "CC EAL6+" }
+            { "id": "mcu", "role": "main processor", "part": "ARM Cortex-M33 @ 160 MHz", "match": false, "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "exact part not published" },
+            { "id": "se", "role": "secure element", "part": "OPTIGA Trust M (V3)", "match": false, "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "CC EAL6+" }
           ],
           "expect": ["main PCB", "USB-C connector", "1.54in colour touchscreen", "microSD slot"],
           "forbid": ["battery", "second PCB", "add-on board", "radio module", "SIM chip", "external antenna", "bodge wires"],
@@ -131,7 +131,7 @@
           "radio": "ble",
           "chips": [
             { "id": "mcu", "role": "hardened security MCU", "part": "STM32U5G", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "ARM Cortex-M33 @ 160 MHz" },
-            { "id": "se", "role": "secure element 1", "part": "OPTIGA Trust M (V3)", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security" },
+            { "id": "se", "role": "secure element 1", "part": "OPTIGA Trust M (V3)", "match": false, "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security" },
             { "id": "se2", "role": "secure element 2", "part": "TROPIC01", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security" }
           ],
           "expect": ["main PCB", "LiFePO4 battery", "USB-C connector", "2.5in touchscreen", "Qi2 wireless charging coil", "BLE antenna"],
@@ -144,7 +144,7 @@
           "power": "usb-only",
           "radio": "none",
           "chips": [
-            { "id": "mcu", "role": "main processor", "part": "ARM Cortex-M3 @ 120 MHz", "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "no secure element - the device relies on the MCU alone" }
+            { "id": "mcu", "role": "main processor", "part": "ARM Cortex-M3 @ 120 MHz", "match": false, "source": "https://trezor.io/learn/security-privacy/how-trezor-keeps-you-safe/trezor-hardware-built-in-security", "note": "no secure element - the device relies on the MCU alone" }
           ],
           "expect": ["main PCB", "Micro-USB connector", "128x64 OLED", "2 buttons"],
           "forbid": ["battery", "secure element", "second PCB", "add-on board", "radio module", "SIM chip", "external antenna", "bodge wires"],
@@ -176,7 +176,7 @@
           "power": "battery",
           "radio": "ble",
           "chips": [
-            { "id": "mcu", "role": "main processor", "part": "ST-logo BGA", "source": "third-party checker prompt", "note": "OneKey does not publish the part number" },
+            { "id": "mcu", "role": "main processor", "part": "ST-logo BGA", "match": false, "source": "third-party checker prompt", "note": "OneKey does not publish the part number" },
             { "id": "se", "role": "secure element", "part": "THD89", "qty": 4, "source": "third-party checker prompt" }
           ],
           "expect": ["OLED screen", "main frame", "back cover", "L-shaped black main PCB", "wireless charging coil (ANT-FPC)", "stainless steel bracket", "730mAh lithium battery", "camera", "button flex", "vibration motor", "speaker", "magnets"],

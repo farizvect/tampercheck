@@ -12,7 +12,10 @@
     "start": "node server.js",
     "test": "node test/rules.test.js",
     "test:live": "python3 test/e2e.py",
-    "test:stream": "python3 test/sse_test.py"
+    "test:stream": "python3 test/sse_test.py",
+    "test:signature": "python3 test/verify_signature.py",
+    "bench": "python3 bench/run.py",
+    "verify": "node tools/verify.js"
   },
   "keywords": [
     "hardware-wallet",
@@ -30,6 +33,8 @@
     "public/",
     "data/devices.json",
     "data/rules.json",
+    "bench/",
+    "tools/",
     "run.sh",
     "README.md",
     "LICENSE"

@@ -10,7 +10,7 @@ const { buildReport, scanForInstructions } = require('../lib/rules');
 const rules = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'rules.json'), 'utf8'));
 const device = {
   brandId: 'ledger', brandName: 'Ledger', modelId: 'nano-x', modelName: 'Nano X',
-  chips: [{ id: 'mcu', part: 'STM32WB55' }, { id: 'se', part: 'ST33' }],
+  chips: [{ id: 'mcu', role: 'main processor', part: 'STM32WB55' }, { id: 'se', role: 'secure element', part: 'ST33' }],
   expect: ['main PCB', 'battery'], forbid: ['second PCB', 'bodge wires'], notes: '',
 };
 
@@ -88,4 +88,67 @@ t('high severity outranks a medium finding', () => {
   assert.strictEqual(r.verdict, 'anomalies');
   assert.strictEqual(r.findings[0].severity, 'high');
 });
+t('a readable chip carrying the wrong part is not reported clean', () => {
+  const o = { ...base, chips: [
+    { id: 'mcu', part_marking: 'STM32F042K6', readable: true, region: 'center' },
+    { id: 'se', part_marking: 'ST31H320', readable: true, region: 'center' }] };
+  const r = mk(o);
+  assert.strictEqual(r.verdict, 'anomalies');
+  assert.ok(r.findings.some((f) => f.kind === 'chip_marking_mismatch'), 'expected a marking mismatch finding');
+});
+
+t('a full orderable part number matches the family reference', () => {
+  const o = { ...base, chips: [{ id: 'mcu', part_marking: 'STM32WB55CEU6', readable: true, region: 'center' }] };
+  assert.strictEqual(mk(o).verdict, 'no_visible_anomalies');
+});
+
+t('a reference that is a description is never used to accuse a board', () => {
+  const d = { ...device, chips: [{ id: 'mcu', part: 'ARM Cortex-M4 @ 180 MHz', match: false }] };
+  const r = buildReport({ device: d, taxonomy: rules, verdicts: rules.verdicts, model: 'test', elapsedMs: 1,
+    observations: { ...base, chips: [{ id: 'mcu', part_marking: 'STM32U5G9', readable: true, region: 'center' }] } });
+  assert.strictEqual(r.verdict, 'no_visible_anomalies');
+});
+
+t('a null reference is not compared either', () => {
+  const d = { ...device, chips: [{ id: 'mcu', part: null }] };
+  const r = buildReport({ device: d, taxonomy: rules, verdicts: rules.verdicts, model: 'test', elapsedMs: 1,
+    observations: { ...base, chips: [{ id: 'mcu', part_marking: 'ANYTHING123', readable: true, region: 'center' }] } });
+  assert.strictEqual(r.verdict, 'no_visible_anomalies');
+});
+
+t('retake advice names the chip that could not be read', () => {
+  const o = { ...base, chips: [{ id: 'mcu', part_marking: '', readable: false, region: 'top-left' }] };
+  const r = mk(o);
+  assert.strictEqual(r.verdict, 'needs_closer_look');
+  assert.ok(r.retake_tips.some((x) => /secure element/i.test(x)), r.retake_tips.join(' | '));
+  assert.ok(r.retake_tips.some((x) => /top-left/.test(x)), 'expected the last-known region');
+});
+
+t('a documented implant signature is named, not just listed as an extra board', () => {
+  const o = { ...base,
+    anomalies: [{ kind: 'extra_board', detail: 'second green PCB marked V05', image: 1, region: 'top-center' },
+                { kind: 'bodge_wire', detail: 'hand-soldered enamelled wires', image: 1, region: 'center' }],
+    visible_text: [{ text: 'SWC' }, { text: 'SWD' }, { text: 'BOOT' }] };
+  const r = mk(o);
+  assert.strictEqual(r.verdict, 'anomalies');
+  assert.ok(r.findings.some((f) => f.kind === 'known_implant_signature'), 'expected the signature to be named');
+  assert.strictEqual(r.findings.filter((f) => f.kind === 'known_implant_signature').length, 1);
+});
+
+t('a rule-only kind reported by the model is rejected', () => {
+  const o = { ...base,
+    anomalies: [{ kind: 'known_implant_signature', detail: 'model says so', image: 1, region: 'center' },
+                { kind: 'chip_marking_mismatch', detail: 'model says so', image: 1, region: 'center' }] };
+  const r = mk(o);
+  assert.strictEqual(r.findings.length, 0);
+  assert.strictEqual(r.verdict, 'no_visible_anomalies');
+});
+
+t('no signature is claimed without the silkscreen labels', () => {
+  const o = { ...base, anomalies: [{ kind: 'extra_board', detail: 'a second board', image: 1, region: 'center' }] };
+  const r = mk(o);
+  assert.strictEqual(r.verdict, 'anomalies');
+  assert.ok(!r.findings.some((f) => f.kind === 'known_implant_signature'));
+});
+
 console.log(`\n${n} rule tests done${process.exitCode ? ' - FAILURES' : ' - all passed'}`);
