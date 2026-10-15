@@ -5,7 +5,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { buildReport, scanForInstructions } = require('../lib/rules');
+const { buildReport, scanForInstructions, normBox } = require('../lib/rules');
 
 const rules = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'rules.json'), 'utf8'));
 const devices = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'devices.json'), 'utf8'));
@@ -195,6 +195,52 @@ t('no signature is claimed without the silkscreen labels', () => {
   const r = mk(o);
   assert.strictEqual(r.verdict, 'anomalies');
   assert.ok(!r.findings.some((f) => f.kind === 'known_implant_signature'));
+});
+
+t('a box on a finding survives into the report', () => {
+  const o = { ...base, anomalies: [{ kind: 'extra_board', detail: 'a second board', image: 1, region: 'center',
+    box: { left: 0.43, top: 0.04, right: 0.80, bottom: 0.46 } }] };
+  const f = mk(o).findings.find((x) => x.kind === 'extra_board');
+  assert.deepStrictEqual(f.box, { left: 0.43, top: 0.04, right: 0.8, bottom: 0.46 });
+});
+
+t('a finding without a box is still reported, with box null', () => {
+  const o = { ...base, anomalies: [{ kind: 'extra_board', detail: 'a second board', image: 1, region: 'center' }] };
+  const f = mk(o).findings.find((x) => x.kind === 'extra_board');
+  assert.strictEqual(f.box, null);
+  assert.strictEqual(mk(o).verdict, 'anomalies');
+});
+
+t('inverted box edges are put back in order', () => {
+  const b = normBox({ left: 0.8, top: 0.46, right: 0.43, bottom: 0.04 });
+  assert.deepStrictEqual(b, { left: 0.43, top: 0.04, right: 0.8, bottom: 0.46 });
+});
+
+t('a box is clamped to the image rather than drawn outside it', () => {
+  const b = normBox({ left: -0.5, top: -1, right: 1.4, bottom: 2 });
+  assert.deepStrictEqual(b, { left: 0, top: 0, right: 1, bottom: 1 });
+});
+
+t('a degenerate or malformed box is dropped, not drawn', () => {
+  assert.strictEqual(normBox({ left: 0.5, top: 0.5, right: 0.5, bottom: 0.5 }), null);
+  assert.strictEqual(normBox({ left: 0.1, top: 0.1, right: 0.11, bottom: 0.9 }), null);
+  assert.strictEqual(normBox({ left: 'left', top: 0, right: 1, bottom: 1 }), null);
+  assert.strictEqual(normBox({ left: 0, top: 0, right: 1 }), null);
+  assert.strictEqual(normBox(null), null);
+  assert.strictEqual(normBox('0,0,1,1'), null);
+});
+
+t('a box the model gave as a string of digits is accepted', () => {
+  const b = normBox({ left: '0.2', top: '0.1', right: '0.6', bottom: '0.5' });
+  assert.deepStrictEqual(b, { left: 0.2, top: 0.1, right: 0.6, bottom: 0.5 });
+});
+
+t('a box on a mismatched chip is carried from the chip reading', () => {
+  const o = { ...base, chips: [{ id: 'mcu', part_marking: 'ESP32', readable: true, region: 'center',
+      box: { left: 0.1, top: 0.2, right: 0.4, bottom: 0.5 } }] };
+  const f = mk(o).findings.find((x) => x.kind === 'chip_marking_unverified');
+  assert.ok(f, 'expected the chip mismatch to be reported');
+  assert.deepStrictEqual(f.box, { left: 0.1, top: 0.2, right: 0.4, bottom: 0.5 });
 });
 
 console.log(`\n${n} rule tests done${process.exitCode ? ' - FAILURES' : ' - all passed'}`);

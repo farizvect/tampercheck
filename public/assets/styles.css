@@ -246,6 +246,32 @@ button.big { padding: .6rem 1.15rem; min-height: 2.6rem; font-size: 13px; }
 .tag.sev-high { color: var(--bad); border-color: var(--bad); }
 .tag.sev-medium { color: var(--warn); border-color: var(--warn); }
 
+/* A finding gets a number when it has a box, and the same number is drawn on the photo. */
+.findings .fnum {
+  display: inline-block; min-width: 1.2rem; margin-right: .45rem; text-align: center;
+  font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--ink);
+  border: 1px solid var(--line-2); vertical-align: 1px;
+}
+.findings .fnum.high { color: var(--bad); border-color: var(--bad); }
+.findings .fnum.medium { color: var(--warn); border-color: var(--warn); }
+
+/* The boxes are drawn over the photo in this tab, in SVG, so they scale with the image. */
+.marked { display: grid; gap: 1.15rem; margin-top: .55rem; }
+.annot { margin: 0; }
+.annot-wrap { position: relative; line-height: 0; border: 1px solid var(--line-2); }
+.annot-wrap img { display: block; width: 100%; height: auto; }
+.annot .boxes { position: absolute; inset: 0; width: 100%; height: 100%; }
+.annot .box { fill: none; stroke: var(--bad); stroke-width: 2; }
+.annot .box.medium { stroke: var(--warn); }
+.annot .box.low { stroke: var(--dim); }
+.annot .boxnum {
+  font: 700 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  fill: var(--bad); paint-order: stroke; stroke: #000; stroke-width: 3px;
+}
+.annot .boxnum.medium { fill: var(--warn); }
+.annot .boxnum.low { fill: var(--mid); }
+.annot figcaption { margin-top: .3rem; }
+
 details { margin-top: 1.15rem; border-top: 1px solid var(--line); padding-top: .75rem; }
 summary { cursor: pointer; color: var(--dim); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
 summary:hover { color: var(--mid); }

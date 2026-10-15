@@ -59,8 +59,8 @@ def main():
 
     results = {}
     results["implant"] = show("REAL IMPLANT (Ledger Nano X)", "ledger", "nano-x", [implant])
-    results["genuine"] = show("GENUINE board", "onekey", "pro", [genuine])
-    results["inject"] = show("PROMPT-INJECTION image", "onekey", "pro", [injection])
+    results["genuine"] = show("GENUINE board (Ledger Nano X)", "ledger", "nano-x", [genuine])
+    results["inject"] = show("PROMPT-INJECTION image", "ledger", "nano-x", [injection])
 
     print("\n=== cache check (same implant photo again) ===")
     st, r, dt = analyze("ledger", "nano-x", [implant])

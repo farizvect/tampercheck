@@ -71,6 +71,8 @@
       no_chips: 'No chip markings were read.',
       injection_note: 'Text in this photo tried to instruct the checker. That is recorded as an anomaly and was not obeyed.',
       findings: 'findings', summary: 'summary', better: 'for a better result',
+      photo_marks: 'where they are',
+      box_note: 'Each box is where the model said it saw that finding, drawn over the photo you submitted. The coordinates come from the model, so a box is a place to look, not a proven location.',
       details: 'what the model read', details_note: 'model output, in English', main_chips: 'main chips', parts_seen: 'parts seen',
       visible_text: 'text visible in the photo', photos_based: 'photos this report is based on',
       photos_note: 'The photos themselves are not kept. The hash lets you prove which image a report was based on.',
@@ -156,6 +158,8 @@
       no_chips: 'Tidak ada marking chip yang terbaca.',
       injection_note: 'Ada teks di foto ini yang mencoba mengarahkan pemeriksa. Itu dicatat sebagai anomali dan tidak dituruti.',
       findings: 'temuan', summary: 'ringkasan', better: 'supaya hasilnya lebih baik',
+      photo_marks: 'lokasinya di foto',
+      box_note: 'Tiap kotak adalah lokasi yang model klaim untuk temuan itu, digambar di atas foto yang kamu kirim. Koordinatnya dari model, jadi kotak itu petunjuk tempat melihat, bukan lokasi yang sudah terbukti.',
       details: 'yang dibaca model', details_note: 'keluaran model, dalam bahasa Inggris', main_chips: 'chip utama', parts_seen: 'komponen terlihat',
       visible_text: 'teks yang terlihat di foto', photos_based: 'foto yang jadi dasar laporan ini',
       photos_note: 'Fotonya sendiri tidak disimpan. Hash-nya membuktikan gambar mana yang jadi dasar laporan.',
@@ -229,6 +233,9 @@
 
   let devices = null, brand = null, model = null, busy = false, lastReport = null;
   let photosOpen = false; // set when the user explicitly goes back to step 2
+  // The photos exactly as the model saw them, kept only in this tab. The report stores hashes, not
+  // images, so the box overlay is drawn over the copy already in memory and nothing new is stored.
+  let lastImages = [];
   const photos = new Map(); // slot id -> prepared photo
 
   // ---------- dom helpers ----------
@@ -245,6 +252,15 @@
     return el;
   };
   const fmt = (n, d = 0) => Number(n).toFixed(d);
+
+  // SVG needs createElementNS, and its attributes are set as strings. Rects are placed with
+  // percentages, so a box stays put whatever size the photo is displayed at.
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const svgEl = (tag, attrs = {}) => {
+    const el = document.createElementNS(SVGNS, tag);
+    for (const [k, v] of Object.entries(attrs)) if (v != null) el.setAttribute(k, v);
+    return el;
+  };
 
   // ---------- language plumbing ----------
   function applyStatic() {
@@ -676,6 +692,7 @@
     busy = true; renderSlots(); sync();
     const ordered = SLOTS.filter((s) => photos.has(s.id) && !photos.get(s.id).loading)
       .map((s) => ({ side: s.id, data: photos.get(s.id).data, small: photos.get(s.id).small }));
+    lastImages = ordered;
     const state = { phase: null, connected: false, keys: [], summary: null, label: t('starting'), doneAt: {} };
     const started = Date.now();
     $('#ab-progress').hidden = false;
@@ -741,9 +758,49 @@
   });
 
   // ---------- report ----------
+
+  // Findings carry a box when the model could place them, as fractions of the photo. This draws
+  // those boxes over the photo the user submitted, so a finding is something you can look at
+  // rather than only read. The photos are the ones already in this tab, and the report keeps only
+  // their hashes, so nothing new is stored and a permalink shows the coordinates without the image.
+  // Returns the figures and a finding -> number map, so the list and the picture cross-reference.
+  function annotate(r) {
+    const nums = new Map();
+    const figures = [];
+    let n = 0;
+    lastImages.forEach((img, i) => {
+      const idx = i + 1;
+      const hits = (r.findings || []).filter((f) => Number(f.image) === idx && f.box);
+      if (!hits.length) return;
+      const svg = svgEl('svg', { class: 'boxes', 'aria-hidden': 'true' });
+      const pct = (v) => (Math.round(v * 10000) / 100) + '%';
+      for (const f of hits) {
+        n += 1;
+        nums.set(f, n);
+        const b = f.box;
+        svg.append(svgEl('rect', {
+          x: pct(b.left), y: pct(b.top),
+          width: pct(b.right - b.left), height: pct(b.bottom - b.top),
+          class: 'box ' + f.severity,
+        }));
+        const badge = svgEl('text', {
+          x: pct(b.left), y: pct(b.top), dx: '0.35em', dy: '1.05em',
+          class: 'boxnum ' + f.severity,
+        });
+        badge.textContent = String(n);
+        svg.append(badge);
+      }
+      figures.push(h('figure', { class: 'annot' },
+        h('div', { class: 'annot-wrap' }, h('img', { src: img.small || img.data, alt: '' }), svg),
+        h('figcaption', { class: 'fine', text: `${t('photo_word')} ${idx} · ${img.side}` })));
+    });
+    return { figures, nums };
+  }
+
   function renderReport(r) {
     lastReport = r;
     const box = $('#report');
+    const { figures: marked, nums } = annotate(r);
     const quality = r.photo_quality_reason
       ? `${enumLabel('quality', r.photo_quality)} (${r.photo_quality_reason})`
       : enumLabel('quality', r.photo_quality);
@@ -751,6 +808,7 @@
     const findings = r.findings.length
       ? h('ul', { class: 'findings' }, r.findings.map((f) => h('li', { 'data-sev': f.severity },
           h('div', {},
+            nums.has(f) ? h('span', { class: 'fnum ' + f.severity, text: String(nums.get(f)) }) : null,
             h('span', { class: 'ftitle', text: f.title }),
             h('span', { class: 'tag sev-' + f.severity, text: enumLabel('sev', f.severity) }),
             h('span', { class: 'tag' + (f.source === 'rule' ? ' rule' : ''), text: enumLabel('src', f.source) })),
@@ -811,6 +869,9 @@
         + ` · ${(r.elapsed_ms / 1000).toFixed(1)}s${r.cached ? ' · ' + t('cached_word') : ''}`),
       r.injection_suspected ? h('p', { class: 'error' }, t('injection_note')) : null,
       h('h3', { text: t('findings') }), findings,
+      marked.length ? h('h3', { text: t('photo_marks') }) : null,
+      marked.length ? h('p', { class: 'fine', text: t('box_note') }) : null,
+      marked.length ? h('div', { class: 'marked' }, ...marked) : null,
       h('h3', { text: t('summary') }), h('p', { text: r.summary }),
       r.retake_tips.length ? h('h3', { text: t('better') }) : null,
       r.retake_tips.length ? h('ul', { class: 'plain' }, r.retake_tips.map((x) => h('li', { text: x }))) : null,
