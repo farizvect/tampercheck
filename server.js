@@ -125,8 +125,9 @@ function parseAnalyze(body) {
   return { device, images, lang };
 }
 
-// Hash each photo as it was submitted. Stored in the report so a result can be tied back to
-// the exact images it was based on; the photos themselves are still not kept.
+// Hash each photo as it was submitted. Stored in the report so a result can be tied back to the
+// exact images it was based on, and so a stored photo can be checked against what the report is
+// about: if the two disagree, the picture is not the one this report describes.
 function photoDigests(images) {
   return images.map((im) => {
     const raw = Buffer.from(String(im.data).split(',')[1] || '', 'base64');
@@ -151,13 +152,45 @@ function finalize({ device, out, images }) {
   const signature = signer.sign(report);
   if (signature) report.signature = signature;
   const id = store.save(report);
+  // Kept so the permalink can show what a finding was about. Storing the picture does not change
+  // what is signed: the report still covers the digests, and a stored photo is only shown if it
+  // hashes to the digest the signature covers.
+  store.savePhotos(id, images);
   return { report, id };
+}
+
+// The stored photo for a report, but only while it still hashes to the digest the report carries.
+// That digest is part of the signed facts, so a file that no longer matches is not the picture this
+// report is about, and is treated as absent rather than shown.
+function verifiedPhoto(id, n, digest) {
+  const kept = store.loadPhoto(id, n);
+  if (!kept || !digest) return null;
+  let buf;
+  try { buf = fs.readFileSync(kept.path); } catch { return null; }
+  if (crypto.createHash('sha256').update(buf).digest('hex') !== digest.sha256) return null;
+  return { ...kept, buf };
 }
 
 // Re-word for the requested language, and mark cache state.
 function present(report, id, { lang, device, cached }) {
   const deviceRef = device || resolveDevice(report.device && report.device.brand, report.device && report.device.model);
-  return { ...localize(report, rules, lang, deviceRef), id, cached: Boolean(cached) };
+  const out = localize(report, rules, lang, deviceRef);
+  // A report describes itself: where its photos are still kept and still match, it says where to
+  // fetch them. Otherwise the entry stays as a digest, and the page says so.
+  out.photos = (out.photos || []).map((p, i) => {
+    const f = verifiedPhoto(id, i + 1, p);
+    return f ? { ...p, url: `/r/${id}/p/${i + 1}.${f.ext}` } : p;
+  });
+  return { ...out, id, cached: Boolean(cached) };
+}
+
+// A cache hit still has the photos in hand, so a report whose pictures were pruned - or which
+// predates keeping them - gets them back rather than staying a text-only page. A hit means the
+// fingerprint matched, so these are the exact images the report is about.
+function ensurePhotos(id, images) {
+  const digest = (images && images.length) ? photoDigests(images)[0] : null;
+  if (!images.length || verifiedPhoto(id, 1, digest)) return;
+  store.savePhotos(id, images);
 }
 
 async function analyze(req, res, ip) {
@@ -171,7 +204,10 @@ async function analyze(req, res, ip) {
 
   const fp = store.fingerprint(device, images, REVISION);
   const hit = store.findCached(fp);
-  if (hit) return send(res, 200, { ...present(hit, hit.id, { lang, device, cached: true }), server_ms: 0 });
+  if (hit) {
+    ensurePhotos(hit.id, images);
+    return send(res, 200, { ...present(hit, hit.id, { lang, device, cached: true }), server_ms: 0 });
+  }
 
   if (!rateOk(ip)) return send(res, 429, { error: 'daily_limit' });
 
@@ -217,7 +253,11 @@ async function analyzeStream(req, res, ip) {
   try {
     const fp = store.fingerprint(device, images, REVISION);
     const hit = store.findCached(fp);
-    if (hit) { sse({ phase: 'done', report: { ...present(hit, hit.id, { lang, device, cached: true }), server_ms: 0 } }); return; }
+    if (hit) {
+      ensurePhotos(hit.id, images);
+      sse({ phase: 'done', report: { ...present(hit, hit.id, { lang, device, cached: true }), server_ms: 0 } });
+      return;
+    }
 
     if (!rateOk(ip)) { sse({ phase: 'error', error: 'daily_limit' }); return; }
 
@@ -246,31 +286,163 @@ async function analyzeStream(req, res, ip) {
   }
 }
 
+// The permalink page. Server-rendered, so a shared link shows the whole result without the app, and
+// so the photos can be shown with the boxes drawn on them: a finding that says "a second board" is
+// much easier to judge when you can see which board. A photo is only shown when it is still stored
+// and still hashes to the digest the report carries (see servePhoto).
 function sharePage(res, rec) {
   const r = rec.report;
+  const id = rec.id;
   const title = `${r.device.name}: ${r.stamp} · tampercheck`;
-  const rows = r.findings.map((f) => `<li><b>[${f.severity}] ${esc(f.title)}</b><br>${esc(f.detail)}</li>`).join('');
+
+  // Numbers are assigned the way the app assigns them - photo by photo, findings in report order -
+  // so number 3 means the same finding here as it does in the app. `p.url` was set by present()
+  // and only exists while the stored file still matches the digest, so a photo that was pruned or
+  // altered simply has no source and the page shows the hash instead of a broken picture.
+  const photos = (r.photos || []).map((p, i) => ({ ...p, n: i + 1, src: p.url || null }));
+  const nums = new Map();
+  let k = 0;
+  for (const ph of photos) {
+    for (const f of r.findings) if (Number(f.image) === ph.n && f.box) { k += 1; nums.set(f, k); }
+  }
+
+  const findings = r.findings.length
+    ? `<ul class="findings">${r.findings.map((f) => `<li data-sev="${esc(f.severity)}">
+<div class="fhead">${nums.has(f) ? `<span class="fnum ${esc(f.severity)}">${nums.get(f)}</span>` : ''}<span class="ftitle">${esc(f.title)}</span><span class="tag sev-${esc(f.severity)}">${esc(f.severity)}</span><span class="tag${f.source === 'rule' ? ' rule' : ''}">${esc(f.source)}</span></div>
+<div class="fdetail">${esc(f.detail)}</div>
+<div class="fwhere">photo ${esc(f.image)} · ${esc(f.region)}</div></li>`).join('')}</ul>`
+    : '<p class="fine">No anomalies listed.</p>';
+
+  const marked = photos.filter((p) => p.src).map((p) => {
+    const hits = r.findings.filter((f) => Number(f.image) === p.n && f.box);
+    const svg = hits.length
+      ? `<svg class="boxes" aria-hidden="true">${hits.map((f) => {
+          const b = f.box, x = pct(b.left), y = pct(b.top);
+          return `<rect x="${x}" y="${y}" width="${pct(b.right - b.left)}" height="${pct(b.bottom - b.top)}" class="box ${esc(f.severity)}"/>`
+            + `<text x="${x}" y="${y}" dx="0.35em" dy="1.05em" class="boxnum ${esc(f.severity)}">${nums.get(f)}</text>`;
+        }).join('')}</svg>`
+      : '';
+    return `<figure class="annot"><div class="annot-wrap"><img src="${p.src}" alt="photo ${p.n}, ${esc(p.side)}">${svg}</div>
+<figcaption class="fine">photo ${p.n} · ${esc(p.side)}</figcaption></figure>`;
+  }).join('');
+
+  const chips = (r.chips || []).length
+    ? `<table><thead><tr><th>chip</th><th>marking read</th><th>legible</th><th>where</th></tr></thead><tbody>${
+        r.chips.map((c) => `<tr><td>${esc(c.id)}</td><td>${esc(c.part_marking || '—')}</td><td>${c.readable === false ? 'no' : 'yes'}</td><td>${esc(c.region || '—')}</td></tr>`).join('')
+      }</tbody></table>`
+    : '<p class="fine">No chips recorded.</p>';
+
+  const parts = (r.components || []).length
+    ? `<h3>parts seen</h3><ul class="plain">${r.components.map((c) => `<li>${esc(`${c.name || c.marking || '?'}${c.status ? ' — ' + c.status : ''}`)}</li>`).join('')}</ul>`
+    : '';
+  const text = (r.visible_text || []).length
+    ? `<h3>text visible in the photo</h3>${r.visible_text.map((v) => `<blockquote>${esc(typeof v === 'string' ? v : v.text)}</blockquote>`).join('')}`
+    : '';
+  const hashes = (r.photos || []).length
+    ? `<h3>photos this report is based on</h3><table><thead><tr><th>side</th><th>sha256</th><th>bytes</th></tr></thead><tbody>${
+        r.photos.map((p) => `<tr><td>${esc(p.side)}</td><td class="sha">${esc(p.sha256)}</td><td class="num">${esc(p.bytes)}</td></tr>`).join('')
+      }</tbody></table><p class="fine">${photos.some((p) => p.src)
+        ? 'The pictures above are the ones that were submitted, and each is checked against its hash before it is shown, so what you see is what this report is about.'
+        : 'No picture is shown: either it is no longer kept on this instance, or the stored file no longer matches the hash the report carries. A picture that does not match is not shown, because it would not be the one this report is about. The hashes above still stand.'}</p>`
+    : '';
+  const sig = r.signature
+    ? `<h3>signature</h3><p class="fine">ed25519, key ${esc(r.signature.key_id)}. It covers the findings, the chip readings and the photo hashes, not the wording. <a href="/api/verify/${esc(id)}">verify this report</a>.</p>`
+    : '';
+  const tips = (r.retake_tips || []).length
+    ? `<h3>for a better result</h3><ul class="plain">${r.retake_tips.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`
+    : '';
+
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
 <meta name="robots" content="noindex">
-<style>body{background:#0b0b0b;color:#e6e6e6;font:14px/1.6 ui-monospace,Menlo,Consolas,monospace;margin:0;padding:2rem;max-width:760px}
-h1{font-size:1.15rem;margin:0 0 .25rem}b{color:#fff}ul{padding-left:1.1rem}li{margin:.6rem 0}
-.v{display:inline-block;border:2px solid #999;padding:.2rem .6rem;margin:.5rem 0}
-.bad{border-color:#e05252;color:#ff9c9c}.ok{border-color:#4caf7d;color:#9ce0b8}.warn{border-color:#c9a227;color:#e8d27a}
-small{color:#8a8a8a}a{color:#cfcfcf}</style></head><body>
-<h1>${esc(r.device.name)} · ${esc(rec.created.slice(0, 16).replace('T', ' '))} UTC</h1>
+<style>
+:root{--ink:#ececec;--mid:#c2c2c2;--dim:#9a9a9a;--faint:#8a8a8a;--line:#2e2e2e;--line-2:#444;--bad:#e05252;--warn:#c9a227;--ok:#4caf7d}
+body{background:#0b0b0b;color:var(--ink);font:14px/1.6 ui-monospace,Menlo,Consolas,monospace;margin:0;padding:2rem 1.2rem;max-width:820px}
+h1{font-size:1.05rem;margin:0 0 .2rem;font-weight:600}
+h3{font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mid);margin:1.6rem 0 .5rem;font-weight:600}
+p{margin:.5rem 0}.fine{color:var(--dim);font-size:12px}.num{text-align:right}
+.v{display:inline-block;border:2px solid #999;padding:.25rem .7rem;margin:.7rem 0 .3rem;font-weight:600}
+.bad{border-color:var(--bad);color:#ff9c9c}.ok{border-color:var(--ok);color:#9ce0b8}.warn{border-color:var(--warn);color:#e8d27a}
+.meta{color:var(--mid);font-size:12.5px}
+ul{padding-left:1.1rem;margin:.4rem 0}li{margin:.55rem 0}
+ul.plain{list-style:none;padding-left:0}
+ul.findings{list-style:none;padding-left:0}
+ul.findings .fhead{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap}
+.fnum{display:inline-flex;align-items:center;justify-content:center;min-width:1.25rem;height:1.25rem;border:1px solid var(--line-2);font-size:11px}
+.fnum.high{color:var(--bad);border-color:var(--bad)}.fnum.medium{color:var(--warn);border-color:var(--warn)}
+.ftitle{color:#fff;font-weight:600}
+.tag{font-size:10.5px;color:var(--dim);border:1px solid var(--line-2);padding:0 .35rem}
+.tag.sev-high{color:var(--bad);border-color:var(--bad)}.tag.sev-medium{color:var(--warn);border-color:var(--warn)}
+.tag.rule{color:var(--warn);border-color:var(--warn)}
+.fdetail{color:var(--mid);margin-top:.2rem}.fwhere{color:var(--faint);font-size:11.5px}
+.marked{display:grid;gap:1.15rem;margin-top:.5rem}
+figure.annot{margin:0}
+.annot-wrap{position:relative;line-height:0;border:1px solid var(--line-2)}
+.annot-wrap img{display:block;width:100%;height:auto}
+.boxes{position:absolute;inset:0;width:100%;height:100%}
+.box{fill:none;stroke:var(--bad);stroke-width:2}
+.box.medium{stroke:var(--warn)}.box.low{stroke:var(--dim)}
+.boxnum{fill:var(--bad);font:600 13px ui-monospace,monospace}
+.boxnum.medium{fill:var(--warn)}.boxnum.low{fill:var(--mid)}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th,td{border-bottom:1px solid var(--line);padding:.35rem .5rem;text-align:left;vertical-align:top}
+th{color:var(--dim);font-weight:600}
+td.sha{word-break:break-all;font-size:11px;color:var(--mid)}
+blockquote{border-left:3px solid var(--line-2);margin:.5rem 0;padding:.35rem .8rem;color:var(--mid)}
+.disclaimer{border-top:1px solid var(--line);margin-top:1.6rem;padding-top:.9rem}
+a{color:#cfcfcf}
+</style></head><body>
+<h1>${esc(r.device.name)}</h1>
+<p class="meta">${esc(rec.created.slice(0, 16).replace('T', ' '))} UTC · quality ${esc(r.photo_quality)}${r.photo_quality_reason ? ` (${esc(r.photo_quality_reason)})` : ''} · ${r.findings.length} finding${r.findings.length === 1 ? '' : 's'} · model ${esc(r.model)}</p>
 <div class="v ${esc(r.tone)}">${esc(r.stamp)}</div>
 <p>${esc(r.meaning)}</p>
-${rows ? `<ul>${rows}</ul>` : '<p>No anomalies listed.</p>'}
-<p><small>Model: ${esc(r.model)} · quality: ${esc(r.photo_quality)} · photos are not stored.
-<a href="/">Check your own wallet</a></small></p>
+${r.injection_suspected ? '<p class="bad">Text in the photo appears to address the checker rather than describe the device. Treat the result with suspicion.</p>' : ''}
+<h3>findings</h3>
+${findings}
+${marked ? `<h3>where they are</h3><p class="fine">Each box is where the model said it saw that finding, drawn over the photo it was given. The coordinates come from the model, so a box is a place to look, not a proven location.</p><div class="marked">${marked}</div>` : ''}
+<h3>summary</h3>
+<p>${esc(r.summary)}</p>
+${tips}
+<h3>detail</h3>
+${chips}${parts}${text}${hashes}${sig}
+<div class="disclaimer">
+<h3>what this report is not</h3>
+<ul class="plain">
+<li>It reads only what the photo shows. An implant hidden under the screen, painted to match the board, or too small to resolve will not appear here.</li>
+<li>A clean result does not mean the device is safe. It means nothing was visible in these photos.</li>
+<li>A photograph cannot verify the secure element, and the manufacturer's own genuine check cannot detect physical additions either. Run it, and treat it as one input rather than an answer.</li>
+<li>Not affiliated with, or endorsed by, any wallet manufacturer.</li>
+</ul>
+</div>
+<p class="fine"><a href="/">Check your own wallet</a> · tampercheck, self-hosted.</p>
 </body></html>`;
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' });
   res.end(html);
 }
 
+// A stored photo is served only if it still hashes to the digest the report carries. That digest is
+// part of the signed facts, so this is what ties the picture to the report: edit the file on disk
+// and the link stops showing it, rather than showing a picture the report never described.
+function servePhoto(res, rec, n) {
+  const digest = (rec.report.photos || [])[n - 1];
+  if (!digest) return send(res, 404, 'not found');
+  const kept = store.loadPhoto(rec.id, n);
+  if (!kept) return send(res, 404, 'not found');
+  const ok = verifiedPhoto(rec.id, n, digest);
+  if (!ok) return send(res, 409, { error: 'photo_changed' });
+  res.writeHead(200, {
+    'content-type': MIME['.' + ok.ext] || 'application/octet-stream',
+    'cache-control': 'private, max-age=600',
+    'x-robots-tag': 'noindex',
+  });
+  res.end(ok.buf);
+}
+
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Boxes are fractions of the photo, and SVG takes them as percentages. Rounded to two decimals so
+// a coordinate does not turn into 30.000000000000004%.
+const pct = (v) => (Math.round(v * 10000) / 100) + '%';
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -308,6 +480,13 @@ const server = http.createServer(async (req, res) => {
       if (!rec) return send(res, 404, 'not found');
       const lang = url.searchParams.get('lang');
       return sharePage(res, { ...rec, report: present(rec.report, rec.id, { lang, cached: true }) });
+    }
+    // The photos a permalink shows, served only while they still match the report's digests.
+    const mPhoto = /^\/r\/([a-z0-9]{4,32})\/p\/([0-9]{1,2})(?:\.[a-z0-9]+)?$/.exec(p);
+    if (mPhoto) {
+      const rec = store.load(mPhoto[1]);
+      if (!rec) return send(res, 404, 'not found');
+      return servePhoto(res, rec, Number(mPhoto[2]));
     }
     if (p === '/' || p === '/index.html') return serveStatic(res, 'index.html');
     if (p.startsWith('/assets/')) return serveStatic(res, p.slice(1));

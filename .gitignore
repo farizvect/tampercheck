@@ -2,7 +2,7 @@ node_modules/
 .env
 .env.local
 
-# Reports and the cache index are per-install data, not source.
+# Reports, the photos they describe, and the cache index are per-install data, not source.
 data/reports/
 
 # The signing key is generated per install and must never be published.

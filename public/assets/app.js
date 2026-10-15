@@ -23,7 +23,7 @@
     en: {
       language: 'language',
       lede: 'Open your hardware wallet, photograph the board, and see whether anything was added that should not be there.',
-      fine_selfhosted: 'Self-hosted. Photos go to the vision model you configured and are not stored. The verdict is decided by rules in code, not by the model.',
+      fine_selfhosted: 'Self-hosted. Photos go to the vision model you configured, and are kept on this machine so a permalink can show them. The verdict is decided by rules in code, not by the model.',
       step_device: 'device', step_photos: 'photos', step_check: 'check',
       brand: 'brand', model: 'model', select_brand: 'select brand', select_model: 'select model',
       hint_default: 'Pick a device above and this tells you which shots to take.',
@@ -81,7 +81,7 @@
       box_note: 'Each box is where the model said it saw that finding, drawn over the photo you submitted. The coordinates come from the model, so a box is a place to look, not a proven location.',
       details: 'what the model read', details_note: 'model output, in English', main_chips: 'main chips', parts_seen: 'parts seen',
       visible_text: 'text visible in the photo', photos_based: 'photos this report is based on',
-      photos_note: 'The photos themselves are not kept. The hash lets you prove which image a report was based on.',
+      photos_note: 'Each photo is kept on this machine so a permalink can show it, and is checked against its hash before it is served. The hash is what ties the picture to this report.',
       signature: 'signature',
       sig_note: (alg, key) => `This report is signed with ${alg}, key ${key}. Verify it with tools/verify.js or any Ed25519 implementation.`,
       permalink: 'permalink', copy_link: 'copy link', copied: 'copied',
@@ -116,7 +116,7 @@
     id: {
       language: 'bahasa',
       lede: 'Buka hardware wallet kamu, foto board-nya, dan lihat apakah ada sesuatu yang ditambahkan yang seharusnya tidak ada.',
-      fine_selfhosted: 'Self-hosted. Foto dikirim ke model vision yang kamu konfigurasi dan tidak disimpan. Verdict ditentukan oleh aturan di kode, bukan oleh model.',
+      fine_selfhosted: 'Self-hosted. Foto dikirim ke model vision yang kamu konfigurasi, dan disimpan di mesin ini supaya tautan permanen bisa menampilkannya. Verdict ditentukan oleh aturan di kode, bukan oleh model.',
       step_device: 'perangkat', step_photos: 'foto', step_check: 'periksa',
       brand: 'merek', model: 'model', select_brand: 'pilih merek', select_model: 'pilih model',
       hint_default: 'Pilih perangkat di atas, nanti muncul panduan foto apa saja yang perlu diambil.',
@@ -174,7 +174,7 @@
       box_note: 'Tiap kotak adalah lokasi yang model klaim untuk temuan itu, digambar di atas foto yang kamu kirim. Koordinatnya dari model, jadi kotak itu petunjuk tempat melihat, bukan lokasi yang sudah terbukti.',
       details: 'yang dibaca model', details_note: 'keluaran model, dalam bahasa Inggris', main_chips: 'chip utama', parts_seen: 'komponen terlihat',
       visible_text: 'teks yang terlihat di foto', photos_based: 'foto yang jadi dasar laporan ini',
-      photos_note: 'Fotonya sendiri tidak disimpan. Hash-nya membuktikan gambar mana yang jadi dasar laporan.',
+      photos_note: 'Tiap foto disimpan di mesin ini supaya tautan permanen bisa menampilkannya, dan dicek dulu terhadap hash-nya sebelum disajikan. Hash itulah yang mengikat gambar ke laporan ini.',
       signature: 'tanda tangan',
       sig_note: (alg, key) => `Laporan ini ditandatangani dengan ${alg}, kunci ${key}. Verifikasi pakai tools/verify.js atau implementasi Ed25519 mana pun.`,
       permalink: 'tautan permanen', copy_link: 'salin tautan', copied: 'tersalin',
@@ -913,8 +913,8 @@
 
   // Findings carry a box when the model could place them, as fractions of the photo. This draws
   // those boxes over the photo the user submitted, so a finding is something you can look at
-  // rather than only read. The photos are the ones already in this tab, and the report keeps only
-  // their hashes, so nothing new is stored and a permalink shows the coordinates without the image.
+  // rather than only read. Here the photos are the ones already in this tab; the server keeps its
+  // own copy for the permalink, and the report itself still carries only the hashes.
   // Returns the figures and a finding -> number map, so the list and the picture cross-reference.
   function annotate(r) {
     const nums = new Map();
