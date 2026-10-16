@@ -2,7 +2,6 @@
   "name": "tampercheck",
   "version": "1.0.0",
   "description": "Self-hosted hardware-wallet board inspector: photograph the opened board and get an automated read on whether anything was added.",
-  "license": "MIT",
   "type": "commonjs",
   "main": "server.js",
   "engines": {
@@ -42,7 +41,6 @@
     "bench/",
     "tools/",
     "run.sh",
-    "README.md",
-    "LICENSE"
+    "README.md"
   ]
 }
