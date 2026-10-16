@@ -112,7 +112,7 @@ Everything is environment variables. Only the API key is a secret, so only it be
 | `TC_HOST` | `127.0.0.1` | Bind address. |
 | `TC_PORT` | `8787` | Bind port. |
 | `TC_DAILY_LIMIT` | `40` | Checks per caller per day. See [Spend limits](#spend-limits). |
-| `TC_TRUST_PROXY` | off | Set `1` only when a proxy in front sets `cf-connecting-ip`. Off, that header is ignored. |
+| `TC_TRUST_PROXY` | auto | `1` always trusts `cf-connecting-ip`, `0` never does. Unset, it is trusted when the connection comes from a non-public address. See [Spend limits](#spend-limits). |
 | `TC_BUDGET_USD` | `5` | Instance-wide spend ceiling. See [Spend limits](#spend-limits). |
 | `TC_BUDGET_FILE` | `<report dir>/budget.json` | Where the local spend ledger is kept. |
 | `TC_BUDGET_TTL_MS` | `60000` | How long a provider reading is reused. |
@@ -134,11 +134,19 @@ The ceiling is global, not per visitor. `TC_DAILY_LIMIT` says how hard one calle
 instance; it says nothing about what the deployment as a whole can afford, which is the number that
 matters to whoever is paying.
 
-The daily limit is keyed on the client address, and that address comes from the socket unless
-`TC_TRUST_PROXY=1` says otherwise. It is off by default because a proxy header is set by the client:
-trusting it without a proxy in front means one header, rotated per request, gives every request a
-fresh allowance, and the limit stops existing. Turn it on only when something in front is known to
-overwrite `cf-connecting-ip`.
+The daily limit is keyed on the client address. A proxy header is set by the client, so it is only
+the caller when something in front overwrote it: trusting it with no proxy in front means one header,
+rotated per request, gives every request a fresh allowance and the limit stops existing. Ignoring it
+with a proxy in front is the opposite failure, and the worse one for a self-hosted instance — every
+visitor lands in a single bucket, so forty requests by anyone lock out everyone for the rest of the
+day, the operator included, at no cost to the caller.
+
+The peer address separates the two cases without configuration. A connection whose source is
+loopback, private, link-local or carrier-grade NAT did not come from the open internet, so it started
+on infrastructure next to the app — a tunnel or a reverse proxy — which is the thing that sets the
+header. That is the default. `TC_TRUST_PROXY=1` forces trust (a CDN that connects from public
+addresses, where the origin must not be reachable without it) and `TC_TRUST_PROXY=0` forces the socket
+address even when the peer looks local.
 
 Two guards, and they are different things:
 
@@ -497,9 +505,17 @@ Every report is signed with Ed25519. The key is generated on first use into
 `data/report-signing-key.pem` and never leaves the machine.
 
 What the signature covers matters: it is taken over the **facts** — the verdict, which findings
-fired, their severities, the chip markings that were read, the hashes of the photos — and not over
-the wording. That is what lets the same report be served in English or Indonesian while still
-verifying, and it means a verifier can re-derive the prose from the signed finding kinds.
+fired, their severities, the chip markings that were read, the hashes of the photos, and who produced
+the observations — and not over the wording. That is what lets the same report be served in English
+or Indonesian while still verifying, and it means a verifier can re-derive the prose from the signed
+finding kinds.
+
+That last fact is the one to read first. A report is `produced_by: "instance"` when this deployment's
+own key, model and endpoint made the call, and `produced_by: "visitor"` when the caller supplied the
+model or the endpoint. A visitor-supplied endpoint returns whatever observations it is told to, so a
+report made through one is signed but is not this instance's own reading: the permalink says so above
+the findings, and `/api/verify` returns the same field. Without it a valid signature would read as
+"tampercheck saw this" for a report tampercheck never looked at.
 
 ```bash
 node tools/verify.js <report-id> http://127.0.0.1:8787
@@ -735,7 +751,8 @@ test/fresh_check.py    guaranteed cache miss
 test/key_leak.py       assert no credential reaches a client, over 36 response paths
 test/model_check.py    live check of the key/model/vision/JSON probe
 test/budget_live.sh    a spent budget refuses the call without reaching upstream
-test/ratelimit.py      the daily limit is per real caller, and a proxy header cannot rotate it away
+test/ratelimit.py      the daily limit is per caller behind a local proxy, in all three modes
+test/static.py         the service worker and the manifest are served at the root
 test/lang.py           the page defaults to English, in a browser whose locale is not English
 test/ui_dock.py        the corner dock against a real browser layout, desktop and phone
 tools/shots_dock.py    screenshots of the dock, closed and open

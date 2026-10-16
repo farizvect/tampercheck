@@ -300,4 +300,16 @@ t('a box on a mismatched chip is carried from the chip reading', () => {
   assert.deepStrictEqual(f.box, { left: 0.1, top: 0.2, right: 0.4, bottom: 0.5 });
 });
 
+// Who produced the observations is a fact about the report, not delivery metadata, so the signature
+// covers it. Without it a report made through a caller-supplied endpoint would be indistinguishable
+// from one this deployment's own model produced, and a valid signature would read as "this instance
+// saw this" when it did not.
+t('a report records who produced the observations', () => {
+  assert.strictEqual(mk(base).produced_by, 'instance');
+  assert.strictEqual(
+    buildReport({ device, observations: base, taxonomy: rules, verdicts: rules.verdicts,
+      model: 'test', elapsedMs: 1, knownParts, producedBy: 'visitor' }).produced_by,
+    'visitor');
+});
+
 console.log(`\n${n} rule tests done${process.exitCode ? ' - FAILURES' : ' - all passed'}`);

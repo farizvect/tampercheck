@@ -2,9 +2,16 @@
 """The per-caller daily limit, and who gets to say who the caller is.
 
 The limit is keyed on the client address. If that address comes from a header the client sets, the
-limit is not a limit: one header, rotated per request, makes every request the first one. This test
-pins both directions - the header is ignored unless the deployment says a proxy sets it, and it is
-honoured when it does.
+limit is not a limit: one header, rotated per request, makes every request the first one. If the
+header is ignored when a proxy is in front, the opposite happens - every visitor shares one bucket,
+and forty requests by anyone lock out everyone for the day.
+
+Both are wrong, and the peer address separates them. A connection whose source is not a public
+address started on infrastructure next to this process, so the header it carries is the caller and is
+trusted. A connection from a public address cannot be that, so the header is ignored.
+
+This pins all three modes: the default (trust a local peer), TC_TRUST_PROXY=0 (never trust) and
+TC_TRUST_PROXY=1 (always trust).
 
 It spends no money: the upstream is pointed at a port with nothing listening, so a request that gets
 past the limit fails at the model call rather than reaching a provider.
@@ -80,26 +87,39 @@ def main():
     tmp = "/tmp/tc-ratelimit"
     os.makedirs(tmp, exist_ok=True)
 
-    # --- the default: a proxy header is not trusted ---
-    print("\n=== no proxy in front (default)")
+    # --- the default: a local peer is the proxy, so the header is the caller ---
+    print("\n=== default (a tunnel or proxy next to the app: the peer is not a public address)")
     proc, base = start(8802, os.path.join(tmp, "a"), {})
     try:
+        # The connection comes from loopback, which is infrastructure next to this process, so the
+        # header is trusted and each caller gets its own allowance. This is the case that makes the
+        # limit per caller rather than one shared bucket.
+        codes = [analyze(base, img, {"cf-connecting-ip": f"198.51.100.{i}"}) for i in range(1, 5)]
+        check("distinct callers each get their own bucket", codes == [502] * 4, f"codes {codes}")
+        codes = [analyze(base, img, {"cf-connecting-ip": "198.51.100.9"}) for _ in range(3)]
+        check("one caller is still limited", codes[2] == 429, f"codes {codes}")
+        # With no header the socket address is the key, and behind a proxy that is one bucket for
+        # everyone - which is why the header has to be trusted when the peer is the proxy.
         codes = [analyze(base, img) for _ in range(3)]
-        check("the limit applies to a caller with no header", codes[2] == 429,
-              f"codes {codes}")
+        check("no header falls back to the socket address", codes[2] == 429, f"codes {codes}")
+    finally:
+        proc.kill()
+        proc.wait()
 
-        # The finding this guards: rotating the header must not mint a fresh bucket each time.
+    # --- TC_TRUST_PROXY=0: the operator says do not trust the header ---
+    print("\n=== TC_TRUST_PROXY=0 (header ignored even from a local peer)")
+    proc, base = start(8804, os.path.join(tmp, "c"), {"TC_TRUST_PROXY": "0"})
+    try:
         codes = [analyze(base, img, {"cf-connecting-ip": f"203.0.113.{i}"}) for i in range(1, 6)]
-        check("a rotated cf-connecting-ip does not bypass the limit", 429 in codes,
-              f"codes {codes}")
+        check("a rotated cf-connecting-ip does not bypass the limit", 429 in codes, f"codes {codes}")
         check("the limit is reached on the third, as without the header",
               codes[2] == 429, f"codes {codes}")
     finally:
         proc.kill()
         proc.wait()
 
-    # --- when a proxy is in front, the header is the answer ---
-    print("\n=== behind a proxy that sets the header (TC_TRUST_PROXY=1)")
+    # --- TC_TRUST_PROXY=1: the operator says a CDN in front sets it ---
+    print("\n=== TC_TRUST_PROXY=1 (always trust)")
     proc, base = start(8803, os.path.join(tmp, "b"), {"TC_TRUST_PROXY": "1"})
     try:
         codes = [analyze(base, img, {"cf-connecting-ip": f"198.51.100.{i}"}) for i in range(1, 5)]
@@ -115,7 +135,8 @@ def main():
         for f in fails:
             print("FAIL:", f)
         return 1
-    print("PASS: the daily limit is per real caller, and a spoofed header cannot rotate it away")
+    print("PASS: the limit is per caller behind a local proxy, and a spoofed header cannot rotate "
+          "it away when it is not trusted")
     return 0
 
 

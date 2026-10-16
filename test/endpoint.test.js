@@ -6,7 +6,8 @@
 // not a safe one).
 const assert = require('assert');
 const dns = require('dns');
-const { isPrivate, parse, resolve, vet, routePath, BAD_NAMES } = require('../lib/endpoint');
+const http = require('http');
+const { isPrivate, parse, resolve, vet, post, routePath, BAD_NAMES } = require('../lib/endpoint');
 
 let n = 0, failed = 0;
 function test(name, fn) {
@@ -177,6 +178,41 @@ async function atest(name, fn) {
     }
     for (const h of ['openrouter.ai', 'api.openai.com', 'my-provider.example.com']) {
       assert.ok(!BAD_NAMES.test(h), `${h} should not be blocked`);
+    }
+  });
+
+  // The streaming path reads `chunks` off whatever callUpstream() returns. The operator's own
+  // endpoint goes through fetch, which provides it; a vetted visitor endpoint has to provide the
+  // same thing, or a streamed request through a visitor's endpoint dies with a TypeError while the
+  // non-streamed path works - and the UI always streams. post() is handed a vetted object built by
+  // hand here, so this needs no DNS and no public address: vetting is vet()'s job, not post()'s.
+  await atest('a vetted endpoint answers a streamed call with chunks', async () => {
+    const srv = http.createServer((req, res) => {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.write('data: one\n\n');
+      res.end('data: [DONE]\n\n');
+    });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    try {
+      const vetted = {
+        url: new URL(`http://127.0.0.1:${srv.address().port}/v1`),
+        host: '127.0.0.1',
+        address: { address: '127.0.0.1', family: 4 },
+      };
+      const res = await post(vetted, {
+        path: '/v1/chat/completions',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+        timeoutMs: 5000,
+      });
+      assert.strictEqual(res.ok, true);
+      assert.ok(res.chunks, 'a streamed call needs chunks, not just text()');
+      let out = '';
+      for await (const c of res.chunks) out += c.toString('utf8');
+      assert.ok(out.includes('data: one'), `chunks should carry the body: ${JSON.stringify(out)}`);
+      assert.ok(out.includes('[DONE]'), `the whole stream should arrive: ${JSON.stringify(out)}`);
+    } finally {
+      srv.close();
     }
   });
 

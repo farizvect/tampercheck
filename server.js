@@ -12,6 +12,7 @@ const signer = require('./lib/sign');
 const store = require('./lib/store');
 const budget = require('./lib/budget');
 const byok = require('./lib/byok');
+const { isPrivate } = require('./lib/endpoint');
 
 const PORT = Number(process.env.TC_PORT || 8787);
 const HOST = process.env.TC_HOST || '127.0.0.1';
@@ -46,18 +47,34 @@ const bucket = new Map(); // ip -> {n, day}
 function dayKey() { return new Date().toISOString().slice(0, 10); }
 
 // Which header, if any, carries the real client address. A proxy header is set by the client, so it
-// is only meaningful when something in front is known to overwrite it; trusting it by default means
-// one header rotates the bucket key on every request and the limit stops existing. Off unless asked
-// for, because a deployment that is not behind that proxy would otherwise take the header at face
-// value.
-const TRUST_PROXY = String(process.env.TC_TRUST_PROXY || '') === '1';
+// is only meaningful when something in front is known to overwrite it; taking it at face value means
+// one header rotates the bucket key on every request and the limit stops existing.
+//
+// The peer address answers that question without configuration. A connection whose source is
+// loopback, a private range, link-local or carrier-grade NAT did not come from the open internet: the
+// source address proves the connection started on infrastructure next to this process, which is the
+// tunnel or reverse proxy that sets the header. A remote client cannot make its own connection look
+// like one of those, so the header is still ignored when the peer is a public address.
+//
+// This is the difference between a per-caller limit and one shared allowance. Ignore the header
+// behind a proxy and every visitor lands in the same bucket: forty requests by anyone then lock out
+// everyone for the day, including the operator, at no cost to the caller. Trust it unconditionally
+// and a public caller rotates the key away. Both are wrong; the peer tells us which case we are in.
+//
+//   TC_TRUST_PROXY=1   always trust (a CDN that connects from public addresses; the origin must not
+//                      be reachable without going through it)
+//   TC_TRUST_PROXY=0   never trust (use the socket address even when the peer looks local)
+//   unset              trust when the peer is not a public address (the default)
+const TRUST_PROXY = String(process.env.TC_TRUST_PROXY || '');
 
 function clientIp(req) {
-  const fwd = TRUST_PROXY ? req.headers['cf-connecting-ip'] : null;
-  const ip = (Array.isArray(fwd) ? fwd[0] : fwd) || req.socket.remoteAddress || 'x';
+  const peer = req.socket.remoteAddress || '';
+  const forwarded = req.headers['cf-connecting-ip'];
+  const trusted = TRUST_PROXY === '1' || (TRUST_PROXY !== '0' && isPrivate(peer));
+  const value = trusted ? (Array.isArray(forwarded) ? forwarded[0] : forwarded) : null;
   // Bounded: the key comes from the request, so an unbounded map is a way to grow this process's
   // memory from outside. 4096 callers a day is far past any real use of a self-hosted checker.
-  return String(ip).slice(0, 64);
+  return String(value || peer || 'x').slice(0, 64);
 }
 
 function rateOk(ip) {
@@ -132,6 +149,14 @@ const MIME = {
   '.webmanifest': 'application/manifest+json',
 };
 
+// Files the browser asks for at the site root rather than under /assets/. The favicon is answered
+// with the icon the page already declares, so a browser's default request does not 404.
+const ROOT_FILES = {
+  '/sw.js': 'sw.js',
+  '/manifest.webmanifest': 'manifest.webmanifest',
+  '/favicon.ico': 'assets/icon-192.png',
+};
+
 function serveStatic(res, rel) {
   const file = path.join(PUBLIC, path.normalize(rel).replace(/^(\.\.[/\\])+/, ''));
   if (!file.startsWith(PUBLIC) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, 'not found');
@@ -163,15 +188,24 @@ function photoDigests(images) {
   });
 }
 
+// Who produced the observations the report is built on. A visitor who supplied only a key still had
+// the call made by this instance's own model against its own endpoint, so that is an instance report
+// with someone else paying. A visitor who supplied the model or the endpoint chose what looked at the
+// photo, so the findings came from outside this instance and the report records that.
+function producedBy(own) {
+  return own && (own.model || own.vetted) ? 'visitor' : 'instance';
+}
+
 // Build, sign and store a report.
 //
 // The stored report is always worded in English: the facts it holds do not depend on language,
 // and the signature covers those facts. The requested language is applied on the way out, so a
 // report can be re-worded later without calling the model again.
-function finalize({ device, out, images }) {
+function finalize({ device, out, images, producedBy }) {
   const report = buildReport({
     device, observations: out.observations, taxonomy: rules, verdicts: rules.verdicts,
     model: out.model, elapsedMs: out.elapsedMs, photos: photoDigests(images), knownParts: KNOWN_PARTS,
+    producedBy,
   });
   const signature = signer.sign(report);
   if (signature) report.signature = signature;
@@ -256,7 +290,7 @@ async function analyze(req, res, ip) {
     return send(res, 502, { error: 'analysis_failed', detail: String(err.message || err).slice(0, 200) });
   }
   if (!own) budget.record(out.usage);
-  const { report, id } = finalize({ device, out, images });
+  const { report, id } = finalize({ device, out, images, producedBy: producedBy(own) });
   store.rememberCached(fp, id);
   send(res, 200, { ...present(report, id, { lang, device, cached: false }), server_ms: Date.now() - started });
 }
@@ -326,7 +360,7 @@ async function analyzeStream(req, res, ip) {
     if (!own) budget.record(out.usage);
     sse({ phase: 'verdict', ms: Date.now() - started });
 
-    const { report, id } = finalize({ device, out, images });
+    const { report, id } = finalize({ device, out, images, producedBy: producedBy(own) });
     store.rememberCached(fp, id);
     sse({ phase: 'done', report: { ...present(report, id, { lang, device, cached: false }), server_ms: Date.now() - started } });
   } catch (err) {
@@ -396,8 +430,14 @@ function sharePage(res, rec) {
         ? 'The pictures above are the ones that were submitted, and each is checked against its hash before it is shown, so what you see is what this report is about.'
         : 'No picture is shown: either it is no longer kept on this instance, or the stored file no longer matches the hash the report carries. A picture that does not match is not shown, because it would not be the one this report is about. The hashes above still stand.'}</p>`
     : '';
+  // A report whose observations came from a caller-supplied model is still signed, but a reader has
+  // to be told that the findings did not come from this instance's own pipeline. It goes above the
+  // findings rather than in the small print at the bottom.
+  const provenance = r.produced_by === 'visitor'
+    ? `<p class="prov">Observations came from a model or endpoint supplied by whoever ran this check, not from this instance's own model. The signature still covers these facts; what it does not say is that this instance saw them.</p>`
+    : '';
   const sig = r.signature
-    ? `<h3>signature</h3><p class="fine">ed25519, key ${esc(r.signature.key_id)}. It covers the findings, the chip readings and the photo hashes, not the wording. <a href="/api/verify/${esc(id)}">verify this report</a>.</p>`
+    ? `<h3>signature</h3><p class="fine">ed25519, key ${esc(r.signature.key_id)}. It covers the findings, the chip readings, the photo hashes and who produced the observations, not the wording. <a href="/api/verify/${esc(id)}">verify this report</a>.</p>`
     : '';
   const tips = (r.retake_tips || []).length
     ? `<h3>for a better result</h3><ul class="plain">${r.retake_tips.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`
@@ -442,12 +482,14 @@ th{color:var(--dim);font-weight:600}
 td.sha{word-break:break-all;font-size:11px;color:var(--mid)}
 blockquote{border-left:3px solid var(--line-2);margin:.5rem 0;padding:.35rem .8rem;color:var(--mid)}
 .disclaimer{border-top:1px solid var(--line);margin-top:1.6rem;padding-top:.9rem}
+.prov{border-left:3px solid var(--warn);padding:.4rem .8rem;margin:.7rem 0;color:var(--mid)}
 a{color:#cfcfcf}
 </style></head><body>
 <h1>${esc(r.device.name)}</h1>
 <p class="meta">${esc(rec.created.slice(0, 16).replace('T', ' '))} UTC · quality ${esc(r.photo_quality)}${r.photo_quality_reason ? ` (${esc(r.photo_quality_reason)})` : ''} · ${r.findings.length} finding${r.findings.length === 1 ? '' : 's'} · model ${esc(r.model)}</p>
 <div class="v ${esc(r.tone)}">${esc(r.stamp)}</div>
 <p>${esc(r.meaning)}</p>
+${provenance}
 ${r.injection_suspected ? '<p class="bad">Text in the photo appears to address the checker rather than describe the device. Treat the result with suspicion.</p>' : ''}
 <h3>findings</h3>
 ${findings}
@@ -544,7 +586,15 @@ const server = http.createServer(async (req, res) => {
       if (!rec) return send(res, 404, { error: 'not_found' });
       const info = signer.publicInfo();
       if (!info.enabled) return send(res, 200, { id: mVerify[1], verified: false, reason: 'signing_disabled' });
-      return send(res, 200, { id: mVerify[1], ...signer.verify(rec.report, info.public_key_pem), key_id: info.key_id });
+      const rep = rec.report || {};
+      // A valid signature says this instance stored these facts. Who produced the observations is a
+      // separate question, and it is answered here so a verifier does not have to read the page: a
+      // report made through a caller-supplied model or endpoint did not come from this instance's
+      // own pipeline, and the signature covers that fact too.
+      return send(res, 200, {
+        id: mVerify[1], ...signer.verify(rep, info.public_key_pem), key_id: info.key_id,
+        produced_by: rep.produced_by === 'visitor' ? 'visitor' : 'instance',
+      });
     }
     const mShare = /^\/r\/([a-z0-9]{4,32})$/.exec(p);
     if (mShare) {
@@ -561,6 +611,10 @@ const server = http.createServer(async (req, res) => {
       return servePhoto(res, rec, Number(mPhoto[2]));
     }
     if (p === '/' || p === '/index.html') return serveStatic(res, 'index.html');
+    // A service worker only controls a page if it is served from the site root, and the browser asks
+    // for the manifest and the favicon at the root too. These live in public/ but outside /assets/,
+    // so without their own routes the offline shell and the installable app never load.
+    if (ROOT_FILES[p]) return serveStatic(res, ROOT_FILES[p]);
     if (p.startsWith('/assets/')) return serveStatic(res, p.slice(1));
     return send(res, 404, 'not found');
   } catch (err) {
