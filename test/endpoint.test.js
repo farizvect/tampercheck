@@ -6,7 +6,7 @@
 // not a safe one).
 const assert = require('assert');
 const dns = require('dns');
-const { isPrivate, parse, resolve, vet, BAD_NAMES } = require('../lib/endpoint');
+const { isPrivate, parse, resolve, vet, routePath, BAD_NAMES } = require('../lib/endpoint');
 
 let n = 0, failed = 0;
 function test(name, fn) {
@@ -79,9 +79,18 @@ async function atest(name, fn) {
   test('refuses cloud metadata by name', () => assert.strictEqual(parse('http://metadata.google.internal/x').error, 'endpoint_private'));
   test('refuses a private literal', () => assert.strictEqual(parse('http://10.0.0.1/v1').error, 'endpoint_private'));
   test('refuses a v4-mapped literal', () => assert.strictEqual(parse('http://[::ffff:127.0.0.1]/v1').error, 'endpoint_private'));
-  // The URL parser normalises ::ffff:127.0.0.1 to ::ffff:7f00:1, so the dotted form never reaches
-  // the check. These are the shapes that actually arrive.
-  test('refuses a normalised v4-mapped literal', () => assert.strictEqual(parse('http://[::ffff:7f00:1]/v1').error, 'endpoint_private'));
+  // The URL parser normalises ::ffff:127.0.0.1 to ::ffff:7f00:1, so the literal check cannot match
+  // the dotted form; these two cover the expanded shape in both of its spellings.
+  test('refuses a v4-mapped literal in normalised form', () => assert.strictEqual(parse('http://[::ffff:7f00:1]/v1').error, 'endpoint_private'));
+  // IPv4-translated puts the ffff one group earlier than IPv4-mapped. Matching only the mapped
+  // shape left this form open while the comment above the check claimed to cover it.
+  test('refuses a v4-translated literal', () => assert.strictEqual(parse('http://[::ffff:0:127.0.0.1]/v1').error, 'endpoint_private'));
+  test('refuses a v4-translated literal in normalised form', () => assert.strictEqual(parse('http://[::ffff:0:7f00:1]/v1').error, 'endpoint_private'));
+  test('refuses a v4-translated literal pointing at a private range', () => assert.strictEqual(parse('http://[::ffff:0:10.0.0.1]/v1').error, 'endpoint_private'));
+  test('still allows a v4-translated literal pointing somewhere public',
+    () => assert.strictEqual(parse('http://[::ffff:0:1.1.1.1]/v1').error, undefined));
+  // The literal check uses the bracket-stripped host, so the normalised shapes are the ones that
+  // actually arrive.
   test('refuses a normalised v4-mapped metadata literal', () => assert.strictEqual(parse('http://[::ffff:a9fe:a9fe]/v1').error, 'endpoint_private'));
   // Node keeps the brackets on an IPv6 hostname, so these are the cases that would slip past a
   // literal check that used url.hostname directly.
@@ -134,6 +143,31 @@ async function atest(name, fn) {
   await atest('vet refuses a private endpoint end to end', async () => {
     const v = await vet('http://127.0.0.1:9119/');
     assert.strictEqual(v.error, 'endpoint_private');
+  });
+
+  console.log('\nendpoint guard - the route on a vetted endpoint');
+  // A visitor's endpoint is often a proxy in front of a provider, so it carries a path of its own.
+  // Replacing that path instead of appending to it sends the call to the right host and the wrong
+  // route, which fails in a way that looks like the visitor's mistake.
+  test('appends the route to an endpoint that has a path', () =>
+    assert.strictEqual(routePath({ url: new URL('https://proxy.example.com/openai/v1') }, '/chat/completions'),
+      '/openai/v1/chat/completions'));
+  test('appends to a bare host', () =>
+    assert.strictEqual(routePath({ url: new URL('https://api.example.com') }, '/chat/completions'),
+      '/chat/completions'));
+  test('appends to a root path', () =>
+    assert.strictEqual(routePath({ url: new URL('https://api.example.com/') }, '/chat/completions'),
+      '/chat/completions'));
+  test('does not double the slash on a trailing-slash path', () =>
+    assert.strictEqual(routePath({ url: new URL('https://api.example.com/v1/') }, '/chat/completions'),
+      '/v1/chat/completions'));
+  test('keeps a deeper prefix', () =>
+    assert.strictEqual(routePath({ url: new URL('https://gw.example.com/a/b/c') }, '/chat/completions'),
+      '/a/b/c/chat/completions'));
+  await atest('the route is what a vetted endpoint ends up carrying', async () => {
+    const v = await vet('https://93.184.216.34/openai/v1');
+    assert.strictEqual(v.error, undefined, JSON.stringify(v));
+    assert.strictEqual(routePath(v, '/chat/completions'), '/openai/v1/chat/completions');
   });
 
   console.log('\nendpoint guard - blocklist shape');

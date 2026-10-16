@@ -44,10 +44,32 @@ const DAILY_LIMIT = Number(process.env.TC_DAILY_LIMIT || 40);
 
 const bucket = new Map(); // ip -> {n, day}
 function dayKey() { return new Date().toISOString().slice(0, 10); }
+
+// Which header, if any, carries the real client address. A proxy header is set by the client, so it
+// is only meaningful when something in front is known to overwrite it; trusting it by default means
+// one header rotates the bucket key on every request and the limit stops existing. Off unless asked
+// for, because a deployment that is not behind that proxy would otherwise take the header at face
+// value.
+const TRUST_PROXY = String(process.env.TC_TRUST_PROXY || '') === '1';
+
+function clientIp(req) {
+  const fwd = TRUST_PROXY ? req.headers['cf-connecting-ip'] : null;
+  const ip = (Array.isArray(fwd) ? fwd[0] : fwd) || req.socket.remoteAddress || 'x';
+  // Bounded: the key comes from the request, so an unbounded map is a way to grow this process's
+  // memory from outside. 4096 callers a day is far past any real use of a self-hosted checker.
+  return String(ip).slice(0, 64);
+}
+
 function rateOk(ip) {
   const d = dayKey();
   const cur = bucket.get(ip);
-  if (!cur || cur.day !== d) { bucket.set(ip, { n: 1, day: d }); return true; }
+  if (!cur || cur.day !== d) {
+    // Drop yesterday's entries as they are met, so a long-lived process does not accumulate one
+    // entry per caller it has ever seen.
+    if (bucket.size > 4096) for (const [k, v] of bucket) if (v.day !== d) bucket.delete(k);
+    bucket.set(ip, { n: 1, day: d });
+    return true;
+  }
   if (cur.n >= DAILY_LIMIT) return false;
   cur.n++;
   return true;
@@ -113,7 +135,7 @@ const MIME = {
 function serveStatic(res, rel) {
   const file = path.join(PUBLIC, path.normalize(rel).replace(/^(\.\.[/\\])+/, ''));
   if (!file.startsWith(PUBLIC) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, 'not found');
-  res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' });
+  res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' });
   fs.createReadStream(file).pipe(res);
 }
 
@@ -475,7 +497,7 @@ const pct = (v) => (Math.round(v * 10000) / 100) + '%';
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
-  const ip = (req.headers['cf-connecting-ip'] || req.socket.remoteAddress || 'x').toString();
+  const ip = clientIp(req);
   const p = url.pathname;
 
   try {

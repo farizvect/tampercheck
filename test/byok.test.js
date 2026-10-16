@@ -13,6 +13,7 @@ const assert = require('assert');
 delete process.env.TC_ALLOW_CUSTOM_ENDPOINT;
 
 const byok = require('../lib/byok');
+const vision = require('../lib/vision');
 
 const KEY = 'sk-or-v1-' + 'a'.repeat(64);
 const req = (headers) => ({ headers });
@@ -141,6 +142,34 @@ async function throws(fn, code) {
   });
   await test('describe(null) says the deployment is paying', async () => {
     assert.deepStrictEqual(byok.describe(null), { byok: false, model: null, custom_endpoint: false });
+  });
+
+  console.log('\nbyok - the pairing, enforced where the two values meet');
+  // lib/byok.js refuses to produce a vetted endpoint without a key. creds() checks it again, because
+  // that is where the key is finally chosen: without the check, a caller that passed a vetted
+  // endpoint and no key would get `|| KEY` - the deployment's credential - attached to a host the
+  // visitor named. The pairing is the safety property, so it is asserted at both ends.
+  await test('a vetted endpoint with no key is refused rather than defaulted', async () => {
+    const vetted = { url: new URL('https://93.184.216.34/v1'), host: '93.184.216.34', address: { address: '93.184.216.34', family: 4 } };
+    await throws(() => { vision.creds({ vetted, key: '' }); }, 'byok_endpoint_without_key');
+  });
+  await test('a vetted endpoint with a key is allowed', async () => {
+    const vetted = { url: new URL('https://93.184.216.34/v1'), host: '93.184.216.34', address: { address: '93.184.216.34', family: 4 } };
+    const c = vision.creds({ vetted, key: KEY });
+    assert.strictEqual(c.key, KEY, 'the visitor key must be the one used');
+    assert.strictEqual(c.vetted, vetted);
+  });
+  await test('no vetted endpoint falls back to the deployment key', async () => {
+    const c = vision.creds({ key: KEY });
+    assert.strictEqual(c.key, KEY);
+    assert.strictEqual(c.vetted, null);
+  });
+  await test('the deployment key is never paired with a vetted endpoint', async () => {
+    // Whatever else happens, these two must not travel together.
+    const vetted = { url: new URL('https://93.184.216.34/v1'), host: '93.184.216.34', address: { address: '93.184.216.34', family: 4 } };
+    let threw = false;
+    try { vision.creds({ vetted, key: '' }); } catch { threw = true; }
+    assert.ok(threw, 'creds() must not produce { key: <deployment>, vetted }');
   });
 
   console.log(`\n${n} byok tests done - ${failed ? `${failed} FAILED` : 'all passed'}`);

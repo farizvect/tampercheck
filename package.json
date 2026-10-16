@@ -17,6 +17,7 @@
     "test:keyleak": "python3 test/key_leak.py",
     "test:modelcheck": "python3 test/model_check.py",
     "test:budget": "bash test/budget_live.sh",
+    "test:ratelimit": "python3 test/ratelimit.py",
     "test:ui": "python3 test/ui_dock.py",
     "bench": "python3 bench/run.py",
     "models": "node tools/model_compare.js",
