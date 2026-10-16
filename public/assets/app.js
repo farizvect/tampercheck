@@ -63,6 +63,7 @@
       est_front: 'the front photo is the one that decides the verdict',
       est_weak: (names) => `${names} may be too weak to judge — you can still run it`,
       est_ready: 'usually 10–30 s, well under a cent of model usage',
+      est_byok: 'usually 10–30 s, billed to your own key',
       est_ready_short: 'ready to check',
       starting: 'starting', phase_queued: 'queued', phase_sent: 'sending the photos',
       phase_connected: 'waiting for the model', phase_verdict: 'applying the rules', phase_writing: 'model is writing',
@@ -72,6 +73,25 @@
       step_write: 'writing up the findings',
       err_stream: 'the stream ended without a report',
       err_check: 'check failed: ',
+      err_budget: 'the check budget for this instance is spent, so no further photos can be analysed. Cached results still work.',
+      err_daily: 'you have reached this instance\'s daily limit. Try again tomorrow.',
+      budget_left: (usd) => `$${usd} of check budget left on this instance.`,
+      budget_out: 'The check budget for this instance is spent. Photos already checked still work; new ones cannot be analysed.',
+      byok_summary: 'use your own model key',
+      byok_note: 'With your own key the model call is billed to you and the check budget of this instance is not used. The key is kept in this tab\'s memory only, never in browser storage, and is not written to the report. A reload clears it.',
+      byok_key: 'key', byok_model: 'model', byok_endpoint: 'endpoint',
+      byok_check: 'check key and model', byok_clear: 'clear',
+      byok_active: 'using your key', byok_checking: 'checking…',
+      byok_ok: 'the key, the model, the image and the JSON reply all check out.',
+      byok_partial: 'something did not check out:',
+      byok_need_key: 'a key is needed before this can be checked.',
+      byok_bad_key: 'the provider rejected this key.',
+      byok_bad_model: 'the provider does not recognise this model id.',
+      byok_no_vision: 'the model replied but did not describe the image, so it may not be able to see.',
+      byok_no_json: 'the model did not reply with JSON, which this checker needs.',
+      byok_unreachable: 'the endpoint could not be reached.',
+      byok_endpoint_note: (w) => `Endpoint is set to ${w}. It must be a public address; this server will not fetch a private or loopback one.`,
+      byok_balance: (usd) => `$${usd} left on your key.`,
       err_devices: 'could not load the device list: ',
       no_findings: 'No anomalies were listed for this board.',
       no_chips: 'No chip markings were read.',
@@ -156,6 +176,7 @@
       est_front: 'foto depan adalah yang menentukan verdict',
       est_weak: (names) => `${names} mungkin terlalu lemah untuk dinilai — tetap bisa dijalankan`,
       est_ready: 'biasanya 10–30 detik, jauh di bawah satu sen pemakaian model',
+      est_byok: 'biasanya 10–30 detik, ditagihkan ke kuncimu sendiri',
       est_ready_short: 'siap diperiksa',
       starting: 'mulai', phase_queued: 'dalam antrean', phase_sent: 'mengirim foto',
       phase_connected: 'menunggu model', phase_verdict: 'menerapkan aturan', phase_writing: 'model sedang menulis',
@@ -165,6 +186,25 @@
       step_write: 'menyusun temuan',
       err_stream: 'stream berakhir tanpa laporan',
       err_check: 'pemeriksaan gagal: ',
+      err_budget: 'budget pemeriksaan untuk instance ini sudah habis, jadi foto baru tidak bisa dianalisa lagi. Hasil yang sudah di-cache tetap jalan.',
+      err_daily: 'kamu sudah mencapai batas harian instance ini. Coba lagi besok.',
+      budget_left: (usd) => `Sisa budget pemeriksaan instance ini: $${usd}.`,
+      budget_out: 'Budget pemeriksaan instance ini sudah habis. Foto yang sudah diperiksa tetap jalan; foto baru tidak bisa dianalisa.',
+      byok_summary: 'pakai kunci model sendiri',
+      byok_note: 'Dengan kunci sendiri, biaya panggilan model ditanggung kamu dan budget instance ini tidak terpakai. Kunci hanya disimpan di memori tab ini, tidak pernah di storage browser, dan tidak ditulis ke laporan. Muat ulang halaman menghapusnya.',
+      byok_key: 'kunci', byok_model: 'model', byok_endpoint: 'endpoint',
+      byok_check: 'cek kunci dan model', byok_clear: 'hapus',
+      byok_active: 'memakai kuncimu', byok_checking: 'memeriksa…',
+      byok_ok: 'kunci, model, gambar, dan balasan JSON semuanya lolos.',
+      byok_partial: 'ada yang tidak lolos:',
+      byok_need_key: 'kunci dibutuhkan dulu sebelum bisa dicek.',
+      byok_bad_key: 'provider menolak kunci ini.',
+      byok_bad_model: 'provider tidak mengenali model id ini.',
+      byok_no_vision: 'model menjawab tapi tidak mendeskripsikan gambarnya, jadi kemungkinan tidak bisa melihat.',
+      byok_no_json: 'model tidak menjawab dengan JSON, padahal pemeriksa ini butuh itu.',
+      byok_unreachable: 'endpoint-nya tidak bisa dihubungi.',
+      byok_endpoint_note: (w) => `Endpoint diset ke ${w}. Harus alamat publik; server ini tidak akan mengambil alamat privat atau loopback.`,
+      byok_balance: (usd) => `Sisa $${usd} di kuncimu.`,
       err_devices: 'tidak bisa memuat daftar perangkat: ',
       no_findings: 'Tidak ada anomali yang tercatat untuk board ini.',
       no_chips: 'Tidak ada marking chip yang terbaca.',
@@ -454,7 +494,140 @@
     }
   }
 
+  // ---------- your own key ----------
+  // Held in this tab's memory and nowhere else: not localStorage, not sessionStorage, not the URL.
+  // A reload clears it. It goes out as a header on the calls you make, and the server uses it for
+  // that call only. Nothing here is persisted, so there is no stored copy to leak.
+  const byok = { key: '', model: '', base: '' };
+  const byokHeaders = () => {
+    const h = {};
+    if (byok.key) h['x-tc-key'] = byok.key;
+    if (byok.model) h['x-tc-model'] = byok.model;
+    if (byok.base) h['x-tc-base-url'] = byok.base;
+    return h;
+  };
+  function byokRead() {
+    byok.key = $('#bk-key').value.trim();
+    byok.model = $('#bk-model').value.trim();
+    byok.base = $('#bk-base').value.trim();
+  }
+  function byokSync() {
+    const active = !!byok.key;
+    $('#bk-state').textContent = active ? t('byok_active') : '';
+    $('#byok').classList.toggle('on', active);
+    // The estimate line names who is paying, because that changes what the budget message means.
+    if (!busy) sync();
+  }
+
+  const CHECK_ORDER = ['key', 'model', 'vision', 'json'];
+  function renderCheck(d) {
+    const out = $('#bk-result');
+    out.hidden = false;
+    if (d.error) {
+      out.className = 'fine warn-line';
+      out.textContent = t(d.error === 'byok_key_required' ? 'byok_need_key' : 'byok_unreachable')
+        + (d.detail ? ` (${d.detail})` : '');
+      return;
+    }
+    const rows = CHECK_ORDER.filter((k) => d.checks && d.checks[k]).map((k) => {
+      const c = d.checks[k];
+      // A check that never ran is neither a pass nor a failure, and drawing a tick beside it would
+      // claim something was verified when it was not.
+      const state = c.reached === false ? 'skip' : c.ok ? 'ok' : 'bad';
+      const mark = c.reached === false ? '–' : c.ok ? '✓' : '✗';
+      return h('div', { class: 'ck ' + state },
+        h('span', { class: 'ckmark', text: mark }),
+        h('span', { class: 'ckname', text: k }),
+        h('span', { class: 'ckdet', text: c.detail || '' }));
+    });
+    const tail = [];
+    if (d.balance && typeof d.balance.remaining === 'number') tail.push(t('byok_balance', d.balance.remaining.toFixed(2)));
+    if (d.cost_usd) tail.push(`checked in ${((d.latency_ms || 0) / 1000).toFixed(1)}s for $${d.cost_usd.toFixed(6)}`);
+    out.className = 'fine' + (d.ok ? '' : ' warn-line');
+    // Filtered, because replaceChildren(null) would put the word "null" on the page.
+    out.replaceChildren(...[
+      h('p', { class: d.ok ? '' : 'warn-line', text: d.ok ? t('byok_ok') : t('byok_partial') }),
+      ...rows,
+      tail.length ? h('p', { class: 'fine', text: tail.join(' · ') }) : null,
+    ].filter(Boolean));
+  }
+
+  $('#bk-check').addEventListener('click', async () => {
+    byokRead();
+    const btn = $('#bk-check');
+    const was = btn.textContent;
+    if (!byok.key) {
+      const out = $('#bk-result');
+      out.hidden = false;
+      out.className = 'fine warn-line';
+      out.textContent = t('byok_need_key');
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = t('byok_checking');
+    try {
+      const res = await fetch('/api/model-check', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...byokHeaders() },
+        body: '{}',
+      });
+      const d = await res.json().catch(() => ({}));
+      renderCheck(res.ok ? d : { error: d.error || 'unreachable', detail: d.detail });
+    } catch (e) {
+      renderCheck({ error: 'unreachable', detail: String(e.message || e).slice(0, 120) });
+    } finally {
+      btn.disabled = false;
+      btn.textContent = was;
+    }
+  });
+
+  $('#bk-clear').addEventListener('click', () => {
+    for (const id of ['#bk-key', '#bk-model', '#bk-base']) $(id).value = '';
+    $('#bk-result').hidden = true;
+    byokRead();
+    byokSync();
+  });
+
+  for (const id of ['#bk-key', '#bk-model', '#bk-base']) {
+    $(id).addEventListener('input', () => { byokRead(); byokSync(); });
+  }
+
   function showError(msg) { const e = $('#error'); e.hidden = false; e.textContent = msg; }
+
+  // How much of the instance's check budget is left, shown only when it is running low: a figure
+  // that is always on screen stops being read. This is a display threshold, not a guard - the guard
+  // is on the server and refuses the call.
+  const BUDGET_LOW_USD = 1;
+  async function loadBudget() {
+    const el = $('#budget-note');
+    if (!el) return;
+    try {
+      const s = await (await fetch('/api/status')).json();
+      const b = s.budget;
+      if (!b) return;
+      if (b.exhausted) {
+        el.hidden = false;
+        el.className = 'error';
+        el.textContent = t('budget_out');
+      } else if (b.remaining_usd < BUDGET_LOW_USD) {
+        el.hidden = false;
+        el.className = 'fine warn-line';
+        el.textContent = t('budget_left', b.remaining_usd.toFixed(2));
+      } else {
+        el.hidden = true;
+      }
+    } catch { /* the note is optional */ }
+  }
+
+  // Error codes from the server are our own vocabulary, so they get real wording instead of being
+  // shown raw. Anything unrecognised falls through with its detail, which is more useful than a
+  // generic message would be.
+  const ERROR_TEXT = { budget_exhausted: 'err_budget', daily_limit: 'err_daily' };
+  function errText(code, detail) {
+    const key = ERROR_TEXT[code];
+    if (key) return t(key);
+    return String(code || 'error') + (detail ? ` (${detail})` : '');
+  }
 
   // Which slot the next picked file should land in. null means "the first free one".
   let pendingSlot = null;
@@ -733,6 +906,10 @@
     $('#ab-sub').textContent = sub || '';
   }
 
+  // The estimate line says who pays, because that is what the reader wants to know before pressing
+  // the button: with a key of their own it is not this instance's budget.
+  const estSub = () => (byok.key ? t('est_byok') : t('est_ready'));
+
   function sync() {
     const filled = SLOTS.filter((s) => photos.has(s.id) && !photos.get(s.id).loading);
     const frontReady = photos.has('front') && !photos.get('front').loading;
@@ -794,7 +971,7 @@
     $('#error').hidden = true;
 
     if (!deviceReady) { setAction(t('est_brand'), ''); return; }
-    if (!frontReady) { setAction(t('est_front'), t('est_ready')); return; }
+    if (!frontReady) { setAction(t('est_front'), estSub()); return; }
     // after a run, the bar reports the outcome rather than telling you to press the button again
     if (lastReport) {
       const n = lastReport.findings.length;
@@ -802,8 +979,8 @@
       return;
     }
     const flag = filled.filter((s) => (photos.get(s.id).issues || []).some((i) => i.level === 'bad'));
-    if (flag.length) setAction(t('est_weak', flag.map((s) => t(s.nameKey)).join(' / ')), t('est_ready'));
-    else setAction(t('est_ready_short'), t('est_ready'));
+    if (flag.length) setAction(t('est_weak', flag.map((s) => t(s.nameKey)).join(' / ')), estSub());
+    else setAction(t('est_ready_short'), estSub());
   }
 
   function renderProgress(state, started) {
@@ -857,13 +1034,13 @@
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
+        headers: { 'content-type': 'application/json', accept: 'text/event-stream', ...byokHeaders() },
         body: JSON.stringify({ brand: brand.id, model: model.id, lang, images: ordered }),
         signal: ctl.signal,
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || `http ${res.status}`);
+        throw new Error(errText(d.error || `http ${res.status}`, d.detail));
       }
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -878,7 +1055,7 @@
           for (const line of block.split('\n')) {
             if (!line.startsWith('data:')) continue;
             let ev; try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
-            if (ev.phase === 'error') throw new Error(ev.error + (ev.detail ? ` (${ev.detail})` : ''));
+            if (ev.phase === 'error') throw new Error(errText(ev.error, ev.detail));
             if (ev.phase === 'done') {
               clearInterval(clock);
               $('#p-run').hidden = true;
@@ -905,7 +1082,7 @@
       $('#progress').replaceChildren();
       showError(t('err_check') + e.message);
     } finally {
-      busy = false; renderSlots(); sync();
+      busy = false; renderSlots(); sync(); loadBudget();
     }
   });
 
@@ -1054,6 +1231,8 @@
   loadDevices()
     .then(() => { renderSpec(); renderSlots(); sync(); })
     .catch((e) => showError(t('err_devices') + e.message));
+
+  loadBudget();
 
   // Installable shell. The service worker caches only the static UI, never a report.
   if ('serviceWorker' in navigator) {

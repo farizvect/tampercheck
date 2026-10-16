@@ -158,6 +158,26 @@ button.big { padding: .6rem 1.15rem; min-height: 2.6rem; font-size: 13px; }
 #p-photos.drop .pbody { background: var(--raise); }
 .paste-note { color: var(--mid); }
 .paste-note.warn { color: var(--warn); }
+
+/* ---------- use your own key ---------- */
+/* Folded away by default: most visitors use the instance's own key and never open this. */
+.byok { margin: .7rem 0 0; border: 1px solid var(--line); padding: 0 .8rem .1rem; }
+.byok > summary { cursor: pointer; color: var(--mid); font-size: 11.5px; padding: .55rem 0; }
+.byok[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: .7rem; }
+.byok.on { border-color: var(--ok); }
+.byok.on > summary { color: var(--ok); }
+.byok-body { padding-bottom: .7rem; }
+.byok-grid { display: grid; gap: .5rem; margin: .6rem 0; }
+.byok-grid label { display: grid; grid-template-columns: 5.5rem 1fr; align-items: center; gap: .6rem; font-size: 11.5px; color: var(--dim); }
+.byok-grid input { font: inherit; font-size: 12px; padding: .35rem .5rem; background: #101010; color: var(--ink); border: 1px solid var(--line-2); min-width: 0; }
+.byok-grid input:focus { outline: 1px solid var(--mid); }
+#bk-result .ck { display: flex; gap: .5rem; align-items: baseline; }
+#bk-result .ckmark { width: 1rem; }
+#bk-result .ck.ok .ckmark { color: var(--ok); }
+#bk-result .ck.bad .ckmark { color: var(--bad); }
+#bk-result .ck.skip .ckmark { color: var(--faint); }
+#bk-result .ckname { min-width: 4rem; color: var(--mid); }
+#bk-result .ckdet { color: var(--dim); }
 .slot-head { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
 .slot-name { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mid); }
 .slot-req { font-size: 10.5px; color: var(--faint); border: 1px solid var(--line-2); padding: 0 .32rem; }

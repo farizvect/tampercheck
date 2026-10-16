@@ -10,10 +10,13 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node test/rules.test.js",
+    "test": "node test/rules.test.js && node test/endpoint.test.js && node test/byok.test.js && node test/budget.test.js",
     "test:live": "python3 test/e2e.py",
     "test:stream": "python3 test/sse_test.py",
     "test:signature": "python3 test/verify_signature.py",
+    "test:keyleak": "python3 test/key_leak.py",
+    "test:modelcheck": "python3 test/model_check.py",
+    "test:budget": "bash test/budget_live.sh",
     "bench": "python3 bench/run.py",
     "models": "node tools/model_compare.js",
     "verify": "node tools/verify.js"

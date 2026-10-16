@@ -6,10 +6,12 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { observe, observeStream, MODEL } = require('./lib/vision');
+const { observe, observeStream, probe, balance, MODEL } = require('./lib/vision');
 const { buildReport, localize } = require('./lib/rules');
 const signer = require('./lib/sign');
 const store = require('./lib/store');
+const budget = require('./lib/budget');
+const byok = require('./lib/byok');
 
 const PORT = Number(process.env.TC_PORT || 8787);
 const HOST = process.env.TC_HOST || '127.0.0.1';
@@ -202,6 +204,12 @@ async function analyze(req, res, ip) {
   if (parsed.error) return send(res, 400, { error: parsed.error });
   const { device, images, lang } = parsed;
 
+  // A visitor who brought a key pays for their own call, so the deployment's budget is not consulted
+  // and not charged. The per-IP daily limit still applies: it is about how hard one caller may lean
+  // on this instance, which is true whether or not they paid for the model call.
+  let own;
+  try { own = await byok.fromRequest(req); } catch (e) { return send(res, 400, { error: e.message }); }
+
   const fp = store.fingerprint(device, images, REVISION);
   const hit = store.findCached(fp);
   if (hit) {
@@ -209,15 +217,23 @@ async function analyze(req, res, ip) {
     return send(res, 200, { ...present(hit, hit.id, { lang, device, cached: true }), server_ms: 0 });
   }
 
+  // Checked after the cache lookup and before the model call: a cached report costs nothing, so a
+  // spent budget must not stop one being served.
+  if (!own) {
+    const b = await budget.status();
+    if (b.exhausted) return send(res, 503, { error: 'budget_exhausted', budget: b });
+  }
+
   if (!rateOk(ip)) return send(res, 429, { error: 'daily_limit' });
 
   const started = Date.now();
   let out;
   try {
-    out = await observe(device, KINDS, images.map((im, i) => ({ n: i + 1, side: im.side || 'front', data: im.data })));
+    out = await observe(device, KINDS, images.map((im, i) => ({ n: i + 1, side: im.side || 'front', data: im.data })), null, own || undefined);
   } catch (err) {
     return send(res, 502, { error: 'analysis_failed', detail: String(err.message || err).slice(0, 200) });
   }
+  if (!own) budget.record(out.usage);
   const { report, id } = finalize({ device, out, images });
   store.rememberCached(fp, id);
   send(res, 200, { ...present(report, id, { lang, device, cached: false }), server_ms: Date.now() - started });
@@ -234,6 +250,11 @@ async function analyzeStream(req, res, ip) {
   const parsed = parseAnalyze(body);
   if (parsed.error) return send(res, 400, { error: parsed.error });
   const { device, images, lang } = parsed;
+
+  // Resolved before the stream headers go out, so a malformed credential is a plain 400 rather than
+  // an error frame in a stream the client has already committed to.
+  let own;
+  try { own = await byok.fromRequest(req); } catch (e) { return send(res, 400, { error: e.message }); }
 
   res.writeHead(200, {
     'content-type': 'text/event-stream; charset=utf-8',
@@ -261,6 +282,13 @@ async function analyzeStream(req, res, ip) {
 
     if (!rateOk(ip)) { sse({ phase: 'error', error: 'daily_limit' }); return; }
 
+    // Same rule as the JSON path: a cache hit is free, a model call is not, and a visitor's own key
+    // means it is not this deployment's money.
+    if (!own) {
+      const b = await budget.status();
+      if (b.exhausted) { sse({ phase: 'error', error: 'budget_exhausted', budget: b }); return; }
+    }
+
     const started = Date.now();
     sse({ phase: 'queued', device: device.brandName + ' ' + device.modelName, photos: images.length });
 
@@ -268,11 +296,12 @@ async function analyzeStream(req, res, ip) {
     try {
       out = await observeStream(device, KINDS,
         images.map((im, i) => ({ n: i + 1, side: im.side || 'front', data: im.data })),
-        (ev) => sse(ev), ctl.signal);
+        (ev) => sse(ev), ctl.signal, own || undefined);
     } catch (err) {
       sse({ phase: 'error', error: 'analysis_failed', detail: String(err.message || err).slice(0, 200) });
       return;
     }
+    if (!own) budget.record(out.usage);
     sse({ phase: 'verdict', ms: Date.now() - started });
 
     const { report, id } = finalize({ device, out, images });
@@ -450,9 +479,30 @@ const server = http.createServer(async (req, res) => {
   const p = url.pathname;
 
   try {
-    if (p === '/api/status') return send(res, 200, { state: 'open', model: MODEL, daily_limit: DAILY_LIMIT });
+    if (p === '/api/status') return send(res, 200, { state: 'open', model: MODEL, daily_limit: DAILY_LIMIT, budget: await budget.status() });
     if (p === '/api/devices') return send(res, 200, devices);
     if (p === '/api/pubkey') return send(res, 200, signer.publicInfo());
+    // Check a visitor's key, model and endpoint before they rely on them. The credential arrives in
+    // a header, is used for this call, and is not stored or echoed: the response describes what the
+    // provider said, never what was sent.
+    if (p === '/api/model-check') {
+      if (req.method !== 'POST') return send(res, 405, { error: 'method_not_allowed' });
+      let own;
+      try { own = await byok.fromRequest(req); } catch (e) { return send(res, 400, { error: e.message }); }
+      if (!own) return send(res, 400, { error: 'byok_key_required' });
+      if (!rateOk(ip)) return send(res, 429, { error: 'daily_limit' });
+      let result;
+      try {
+        result = await probe(own);
+      } catch (err) {
+        return send(res, 502, { error: 'check_failed', detail: String(err.message || err).slice(0, 200) });
+      }
+      // What the key has left is a bonus: it only means something on a provider that reports it, so
+      // a provider that does not must not turn a working check into a failure.
+      let bal = null;
+      try { bal = await balance(own); } catch { bal = null; }
+      return send(res, 200, { ...result, balance: bal, endpoint: own.vetted ? 'custom' : 'this instance' });
+    }
     if (p === '/api/analyze') {
       if (req.method !== 'POST') return send(res, 405, { error: 'method_not_allowed' });
       const wantsStream = /text\/event-stream/.test(req.headers.accept || '');

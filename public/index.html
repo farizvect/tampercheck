@@ -24,6 +24,31 @@
     </label>
   </div>
   <p class="lede" data-i18n="lede">Open your hardware wallet, photograph the board, and see whether anything was added that should not be there.</p>
+  <!-- Optional, and folded away: the instance's own key is used unless someone brings theirs. The
+       fields are held in this tab's memory only, never in storage, so a reload clears them. -->
+  <details class="byok" id="byok">
+    <summary data-i18n="byok_summary">use your own model key</summary>
+    <div class="byok-body">
+      <p class="fine" data-i18n="byok_note">With your own key the model call is billed to you and the check budget of this instance is not used. The key is kept in this tab's memory only, never in browser storage, and is not written to the report. A reload clears it.</p>
+      <div class="byok-grid">
+        <label for="bk-key"><span data-i18n="byok_key">key</span>
+          <input type="password" id="bk-key" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="sk-...">
+        </label>
+        <label for="bk-model"><span data-i18n="byok_model">model</span>
+          <input type="text" id="bk-model" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="google/gemini-3.8-flash">
+        </label>
+        <label for="bk-base"><span data-i18n="byok_endpoint">endpoint</span>
+          <input type="text" id="bk-base" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="https://openrouter.ai/api/v1">
+        </label>
+      </div>
+      <div class="actions">
+        <button type="button" id="bk-check" data-i18n="byok_check">check key and model</button>
+        <button type="button" class="tiny" id="bk-clear" data-i18n="byok_clear">clear</button>
+        <span class="fine" id="bk-state" role="status"></span>
+      </div>
+      <div id="bk-result" class="fine" hidden></div>
+    </div>
+  </details>
 </header>
 
 <!-- Stated before the first photo is taken, because a result that looks clean is exactly when
@@ -100,6 +125,7 @@
 <footer class="fine">
   <p data-i18n="footer">Automated visual observations, not a certification. Photos cannot prove a device is safe: run the manufacturer's own genuine check as well.</p>
   <p data-i18n="fine_selfhosted">Self-hosted. Photos go to the vision model you configured, and are kept on this machine so a permalink can show them. The verdict is decided by rules in code, not by the model.</p>
+  <p class="fine" id="budget-note" hidden role="status"></p>
 </footer>
 
 <!-- Always reachable: the primary action, and what is happening right now. -->
