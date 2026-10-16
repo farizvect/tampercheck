@@ -197,6 +197,63 @@ t('no signature is claimed without the silkscreen labels', () => {
   assert.ok(!r.findings.some((f) => f.kind === 'known_implant_signature'));
 });
 
+// The published implant boards carry their part numbers on the antenna, the case and the radio
+// module. A marking is stronger evidence than a shape, because it is a name rather than a
+// resemblance, so it is matched against the documented list rather than described generically.
+t('a documented implant antenna marking is named, not described as a shape', () => {
+  const o = { ...base, visible_text: [{ text: 'AC-A2205-NX 欧亚版-V1.1', region: 'middle-right' }] };
+  const r = mk(o);
+  assert.strictEqual(r.verdict, 'anomalies');
+  const sig = r.findings.filter((f) => f.kind === 'known_implant_signature');
+  assert.strictEqual(sig.length, 1, 'expected exactly one signature finding');
+  assert.ok(/AC-A2/.test(sig[0].detail), `the board should be named: ${sig[0].detail}`);
+  assert.ok(/AC-A2205/.test(sig[0].detail), `the matched token should be reported: ${sig[0].detail}`);
+});
+
+// The radio arrives as a component with a part number at least as often as it arrives as visible
+// text, so the marking on a component has to count. Without that the signature data would reach the
+// prompt but never the verdict.
+t('the implant parts are caught from component markings too', () => {
+  const radio = mk({ ...base, components: [{ name: 'cellular module', marking: 'nRF9151 LACA A1', status: 'extra' }] });
+  assert.ok(radio.findings.some((f) => f.kind === 'known_implant_signature'), 'module marking not matched');
+  const antenna = mk({ ...base, components: [{ name: 'printed antenna', marking: 'AC-A2016-NANO-V1.1', status: 'extra' }] });
+  assert.ok(antenna.findings.some((f) => f.kind === 'known_implant_signature'), 'antenna marking not matched');
+});
+
+// "V05" is an ordinary board revision. It is only a documented implant when the board it is on is
+// itself the kind of thing the implant is, so the marking alone must not fire.
+t('a V05 marking on its own is not enough', () => {
+  const r = mk({ ...base, visible_text: [{ text: 'V05' }] });
+  assert.ok(!r.findings.some((f) => f.kind === 'known_implant_signature'));
+  assert.strictEqual(r.verdict, 'no_visible_anomalies');
+});
+
+t('a V05 add-on board does name the documented implant', () => {
+  const r = mk({ ...base, visible_text: [{ text: 'V05' }, { text: '2522' }],
+    anomalies: [{ kind: 'extra_board', detail: 'add-on board taped to the battery', image: 1, region: 'center' }] });
+  assert.ok(r.findings.some((f) => f.kind === 'known_implant_signature'));
+});
+
+// The other direction: a board with nothing wrong must not be swept up by a marking it legitimately
+// carries. The maker's own silkscreen is exactly what a signature list is most likely to trip on.
+t('a genuine board is not flagged for its own markings', () => {
+  const o = { ...base,
+    visible_text: [{ text: 'Ledger Nano X' }, { text: 'Made in France' }, { text: 'CE' }],
+    components: [{ name: 'battery', marking: 'MB 201544 3.7V 130mAh 0.481Wh', status: 'expected' },
+                 { name: 'main PCB', marking: 'E232940 JVE-M2', status: 'expected' }] };
+  const r = mk(o);
+  assert.strictEqual(r.verdict, 'no_visible_anomalies');
+  assert.ok(!r.findings.some((f) => f.kind === 'known_implant_signature'));
+});
+
+// Every signature is a claim about the world, so each one has to say where it came from - the same
+// bar the device reference data is held to.
+t('every signature names its source', () => {
+  for (const s of rules.signatures) {
+    assert.ok(s.source && /^https:\/\/\S+$/.test(s.source), `${s.id} has no source URL`);
+  }
+});
+
 t('a box on a finding survives into the report', () => {
   const o = { ...base, anomalies: [{ kind: 'extra_board', detail: 'a second board', image: 1, region: 'center',
     box: { left: 0.43, top: 0.04, right: 0.80, bottom: 0.46 } }] };

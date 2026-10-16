@@ -10,7 +10,8 @@
   "tibane": "https://www.tibane.net/research/ledger-nano-x-implant",
   "boxmining": "https://boxmining.com/news/ledger-hardware-implant-cryptobilis-hack/",
   "ledger": "https://support.ledger.com/article/4404382029329-zd",
-  "trezor": "https://github.com/trezor/trezor-core/tree/master/docs/hardware"
+  "trezor": "https://github.com/trezor/trezor-core/tree/master/docs/hardware",
+  "karpeleslab": "https://karpeleslab.github.io/ledger_implant_osint/"
  },
  "cases": [
   {
@@ -416,6 +417,26 @@
     0.98,
     0.98
    ]
+  },
+  {
+   "id": "implant-ledger-stax-antenna-marking",
+   "brand": "ledger",
+   "model": "stax",
+   "truth": "tampered",
+   "provenance": "real",
+   "url": "https://pbs.twimg.com/media/HUa_qK_bMAA7MG3.jpg?name=orig",
+   "sha256": "2d28d310e4d7945ee796d1f12cf6522ed7e7c75834fb7ab8fc55b220221eb780",
+   "note": "Ledger Stax from CryptoBilis (karpeleslab OSINT case 2026-10-10): the parts laid out, with the back cover carrying the printed implant antenna marked AC-A2014-STAX-V1.1. The case that carries a part number in the published implant antenna series."
+  },
+  {
+   "id": "implant-ledger-stax-nrf9151",
+   "brand": "ledger",
+   "model": "stax",
+   "truth": "tampered",
+   "provenance": "real",
+   "url": "https://pbs.twimg.com/media/HUQfMS6acAARsnK.jpg?name=orig",
+   "sha256": "38d493fc4b4731b34e1562e4732d23e43b5475c4f74b31357ea564bafb445c30",
+   "note": "Same device: close-up of the added radio, a Nordic Semiconductor nRF9151, the module the published implants use."
   }
  ]
 }

@@ -101,6 +101,7 @@
    "id": "ledger-implant-2026",
    "label": "Matches the documented Ledger implant (extra board with test pads)",
    "severity": "high",
+   "source": "https://karpeleslab.github.io/ledger_implant_osint/",
    "detail": "An extra PCB carrying debug and programming test pads (SWC/SWD/BOOT/DM/DP), wired into the main board with hand-soldered enamelled wire, is the documented 2026 Ledger implant. A genuine unit has one board and no such pads.",
    "match": {
     "visible_text_any": [
@@ -114,6 +115,54 @@
      "TEST"
     ],
     "min_text_hits": 3,
+    "anomalies_any": [
+     "extra_board",
+     "bodge_wire",
+     "added_module"
+    ]
+   }
+  },
+  {
+   "id": "ledger-implant-antenna",
+   "label": "Marking matches a documented implant antenna",
+   "severity": "high",
+   "source": "https://karpeleslab.github.io/ledger_implant_osint/",
+   "detail": "A marking read from this photo begins AC-A2 (AC-A2014-STAX, AC-A2016-NANO, AC-A2201-FLEX, AC-A2205-NANO-X / AC-A2205-NX). Those are the part numbers printed on the flat antennas of the implant boards recovered from Ledger devices bought at retail across nine sellers. No genuine unit of any of these models carries a marking in that series, so the marking alone is the implant. Read it back from the photo before acting: a wrong marking is the one way this can misfire.",
+   "match": {
+    "visible_text_any": [
+     "AC-A2014",
+     "AC-A2016",
+     "AC-A2201",
+     "AC-A2205"
+    ],
+    "min_text_hits": 1
+   }
+  },
+  {
+   "id": "ledger-implant-cellular-module",
+   "label": "Part matches a documented implant radio module",
+   "severity": "high",
+   "source": "https://karpeleslab.github.io/ledger_implant_osint/",
+   "detail": "The radio in the documented implants is a Nordic Semiconductor nRF9151 (LTE-M / NB-IoT) or a Luat Air700E (LTE Cat.1bis). Neither belongs in a hardware wallet, and neither appears in any genuine unit, so the part number on the module identifies the implant on its own.",
+   "match": {
+    "visible_text_any": [
+     "NRF9151",
+     "AIR700E"
+    ],
+    "min_text_hits": 1
+   }
+  },
+  {
+   "id": "ledger-implant-v05-board",
+   "label": "Add-on board marked V05",
+   "severity": "high",
+   "source": "https://karpeleslab.github.io/ledger_implant_osint/",
+   "detail": "An add-on board marked V05 (with 2522) hand-wired into the OLED SPI lines is one of the documented implants. \"V05\" is a common board revision and not unique on its own, so it counts only together with a structural finding.",
+   "match": {
+    "visible_text_any": [
+     "V05"
+    ],
+    "min_text_hits": 1,
     "anomalies_any": [
      "extra_board",
      "bodge_wire",
