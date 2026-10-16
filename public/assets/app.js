@@ -252,9 +252,12 @@
 
   let lang = 'en';
   try {
+    // English is the default. A browser set to another language does not change that: the app has one
+    // default, and a visitor who wants the other language picks it from the switcher. Only an explicit
+    // choice is remembered, and it is checked against the tables rather than trusted as-is, so a stale
+    // or hand-edited value falls back to English instead of setting the document language to garbage.
     const saved = localStorage.getItem('tc-lang');
-    const nav = (navigator.language || 'en').slice(0, 2).toLowerCase();
-    lang = saved || (L10N[nav] ? nav : 'en');
+    lang = L10N[saved] ? saved : 'en';
   } catch { /* storage may be unavailable */ }
   const t = (key, ...args) => {
     const table = L10N[lang] || L10N.en;
