@@ -78,6 +78,7 @@
       budget_left: (usd) => `$${usd} of check budget left on this instance.`,
       budget_out: 'The check budget for this instance is spent. Photos already checked still work; new ones cannot be analysed.',
       byok_summary: 'use your own model key',
+      byok_tab: 'own model key', byok_close: 'close',
       byok_note: 'With your own key the model call is billed to you and the check budget of this instance is not used. The key is kept in this tab\'s memory only, never in browser storage, and is not written to the report. A reload clears it.',
       byok_key: 'key', byok_model: 'model', byok_endpoint: 'endpoint',
       byok_check: 'check key and model', byok_clear: 'clear',
@@ -191,6 +192,7 @@
       budget_left: (usd) => `Sisa budget pemeriksaan instance ini: $${usd}.`,
       budget_out: 'Budget pemeriksaan instance ini sudah habis. Foto yang sudah diperiksa tetap jalan; foto baru tidak bisa dianalisa.',
       byok_summary: 'pakai kunci model sendiri',
+      byok_tab: 'kunci model sendiri', byok_close: 'tutup',
       byok_note: 'Dengan kunci sendiri, biaya panggilan model ditanggung kamu dan budget instance ini tidak terpakai. Kunci hanya disimpan di memori tab ini, tidak pernah di storage browser, dan tidak ditulis ke laporan. Muat ulang halaman menghapusnya.',
       byok_key: 'kunci', byok_model: 'model', byok_endpoint: 'endpoint',
       byok_check: 'cek kunci dan model', byok_clear: 'hapus',
@@ -325,6 +327,13 @@
   function applyStatic() {
     document.documentElement.lang = lang;
     for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+    // A control whose only text is a glyph still needs a translated label for a screen reader, and
+    // title/aria-label are the two places that text lives.
+    for (const el of document.querySelectorAll('[data-i18n-title]')) {
+      const s = t(el.dataset.i18nTitle);
+      el.title = s;
+      el.setAttribute('aria-label', s);
+    }
     // Set after the sweep: the hint needs the platform, and the sweep calls t() with no arguments.
     const hint = $('#drag-hint');
     if (hint) hint.textContent = t('or_drag', PASTE_KEY);
@@ -518,6 +527,19 @@
     // The estimate line names who is paying, because that changes what the budget message means.
     if (!busy) sync();
   }
+
+  // The panel is a popover, not a page section: it opens over the corner and closes again. Escape
+  // closes it, which is what a popover is expected to do and what a keyboard user will try.
+  function byokOpen(open) {
+    $('#bk-panel').hidden = !open;
+    $('#bk-toggle').setAttribute('aria-expanded', String(open));
+    if (open) $('#bk-key').focus();
+  }
+  $('#bk-toggle').addEventListener('click', () => byokOpen($('#bk-panel').hidden));
+  $('#bk-close').addEventListener('click', () => { byokOpen(false); $('#bk-toggle').focus(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('#bk-panel').hidden) { byokOpen(false); $('#bk-toggle').focus(); }
+  });
 
   const CHECK_ORDER = ['key', 'model', 'vision', 'json'];
   function renderCheck(d) {

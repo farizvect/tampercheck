@@ -16,6 +16,12 @@
   --warn: #c9a227;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --bar: 5.25rem;
+  /* The horizontal inset of the page's own furniture. Shared by the action bar and the corner dock
+     so their left edges cannot drift apart, which is exactly what happened when each wrote its own. */
+  --inset: max(1.25rem, calc(50vw - 440px + 1.25rem));
+  /* The dock's own inset from the window edge. Deliberately smaller than --inset: the dock is a
+     floating control in the corner of the window, not a child of the centred text column. */
+  --corner: .9rem;
 }
 
 * { box-sizing: border-box; }
@@ -159,14 +165,44 @@ button.big { padding: .6rem 1.15rem; min-height: 2.6rem; font-size: 13px; }
 .paste-note { color: var(--mid); }
 .paste-note.warn { color: var(--warn); }
 
-/* ---------- use your own key ---------- */
-/* Folded away by default: most visitors use the instance's own key and never open this. */
-.byok { margin: .7rem 0 0; border: 1px solid var(--line); padding: 0 .8rem .1rem; }
-.byok > summary { cursor: pointer; color: var(--mid); font-size: 11.5px; padding: .55rem 0; }
-.byok[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: .7rem; }
-.byok.on { border-color: var(--ok); }
-.byok.on > summary { color: var(--ok); }
-.byok-body { padding-bottom: .7rem; }
+/* ---------- own-key dock ---------- */
+/* Pinned to the bottom-left corner rather than sitting in the page flow: it is not part of taking a
+   photo, and most visitors never open it. It has to clear the action bar, which is sticky at the
+   bottom and whose height is --bar. */
+.dock {
+  position: fixed; z-index: 25;
+  /* Pinned to the window's own corner, not to the centred content column. It is a floating control
+     that belongs to the viewport, so on a wide screen it sits outside the 880px text column rather
+     than lining up with it. */
+  left: var(--corner);
+  bottom: calc(var(--bar) + .9rem);
+  display: flex; flex-direction: column-reverse; align-items: flex-start; gap: .45rem;
+  max-width: min(23rem, calc(100vw - 2rem));
+}
+/* column-reverse puts the tab at the bottom and the panel above it, which is what a bottom-anchored
+   popover should do; the DOM order stays toggle-then-panel for keyboard and screen readers. */
+.dock-tab {
+  display: inline-flex; align-items: center; gap: .45rem;
+  font: inherit; font-size: 11.5px; letter-spacing: .02em;
+  padding: .35rem .6rem; min-height: 1.9rem;
+  background: var(--bg); color: var(--dim);
+  border: 1px solid var(--line-2); cursor: pointer;
+}
+.dock-tab:hover { color: var(--ink); border-color: var(--mid); }
+.dock-tab:focus-visible { outline: 1px solid var(--mid); outline-offset: 1px; }
+/* A dot rather than a colour change alone, so the state survives a monochrome screen and does not
+   depend on telling two dark greys apart. */
+.dock-dot { width: .45rem; height: .45rem; border-radius: 50%; background: var(--line-2); flex: none; }
+.dock.on .dock-tab { color: var(--ok); border-color: var(--ok); }
+.dock.on .dock-dot { background: var(--ok); }
+.dock-panel {
+  width: min(23rem, calc(100vw - 2rem));
+  background: var(--bg); border: 1px solid var(--line-2);
+  padding: .75rem .8rem .8rem; box-shadow: 0 12px 26px -14px #000;
+}
+.dock-head { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--mid); }
+.dock-x { font: inherit; font-size: 15px; line-height: 1; padding: 0 .25rem; background: none; color: var(--dim); border: 0; cursor: pointer; }
+.dock-x:hover { color: var(--ink); }
 .byok-grid { display: grid; gap: .5rem; margin: .6rem 0; }
 .byok-grid label { display: grid; grid-template-columns: 5.5rem 1fr; align-items: center; gap: .6rem; font-size: 11.5px; color: var(--dim); }
 .byok-grid input { font: inherit; font-size: 12px; padding: .35rem .5rem; background: #101010; color: var(--ink); border: 1px solid var(--line-2); min-width: 0; }
@@ -235,7 +271,7 @@ button.big { padding: .6rem 1.15rem; min-height: 2.6rem; font-size: 13px; }
 .actionbar {
   position: sticky; bottom: 0; z-index: 20;
   margin: 1.2rem calc(50% - 50vw) 0;
-  padding: .75rem max(1.25rem, calc(50vw - 440px + 1.25rem)) calc(.75rem + env(safe-area-inset-bottom));
+  padding: .75rem var(--inset) calc(.75rem + env(safe-area-inset-bottom));
   background: var(--bg);
   border-top: 1px solid var(--line-2);
   box-shadow: 0 -14px 18px -14px #000;
@@ -323,14 +359,14 @@ a { color: #dcdcdc; text-underline-offset: 2px; }
 footer { margin-top: 2rem; border-top: 1px solid var(--line); padding-top: .9rem; }
 
 @media (max-width: 640px) {
-  :root { --bar: 6.5rem; }
+  :root { --bar: 6.5rem; --inset: max(.85rem, calc(50vw - 440px + .85rem)); }
   body { padding: 1.15rem .85rem calc(var(--bar) + 2rem); font-size: 13px; }
   .slot-body { grid-template-columns: 100px 1fr; }
   .slot-body img { width: 100px; height: 76px; }
   .meter { grid-template-columns: 5rem 1fr auto; font-size: 10.5px; }
   .spec .kv { grid-template-columns: 6.5rem 1fr; }
   .actions button { flex: 1 1 auto; }
-  .actionbar { padding: .7rem max(.85rem, calc(50vw - 440px + .85rem)) calc(.7rem + env(safe-area-inset-bottom)); }
+  .actionbar { padding: .7rem var(--inset) calc(.7rem + env(safe-area-inset-bottom)); }
   .ab-progress { margin: -.7rem calc(50% - 50vw) .65rem; }
   .ab-inner { flex-direction: column; align-items: stretch; gap: .6rem; }
   .ab-text { flex: none; }

@@ -5,7 +5,7 @@
 // cached here: a cached verdict would be a stale claim about a device, which is exactly the kind
 // of thing this tool exists to avoid.
 
-const CACHE = 'tampercheck-shell-v5';
+const CACHE = 'tampercheck-shell-v8';
 const SHELL = [
   '/',
   '/assets/styles.css',
